@@ -17,7 +17,10 @@
     "smoke": "tsx --env-file=.env scripts/smoke-azure.ts",
     "agents:setup": "tsx --env-file=.env scripts/setup-agents.ts",
     "upload": "tsx --env-file=.env scripts/upload-batch.ts",
-    "e2e": "tsx --env-file=.env scripts/e2e.ts"
+    "e2e": "tsx --env-file=.env scripts/e2e.ts",
+    "dev:web": "pnpm --filter web dev",
+    "build:web": "pnpm --filter web build",
+    "typecheck:web": "pnpm --filter web typecheck"
   },
   "keywords": [],
   "author": "",

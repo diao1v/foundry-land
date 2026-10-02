@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@theme inline {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-navy: #0b1b33;
+  --color-navy-2: #1b2e4d;
+  --color-navy-muted: #9fb0c8;
+  --color-canvas: #f4f6f9;
+  --color-coral: #f05a3c;
+  --color-coral-soft: #fde6df;
+  --color-coral-ink: #b93a1f;
+  --color-bad: #c2410c;
+  --color-ok: #2f7d5b;
+  --color-ok-soft: #dff1e8;
+  --color-warn: #d99a1e;
+  --color-warn-soft: #fbf1dc;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Navy & coral. Coral only for "this needs you". */
+:root {
+  --radius: 0.625rem;
+  --background: #f4f6f9;
+  --foreground: #0b1b33;
+  --card: #ffffff;
+  --card-foreground: #0b1b33;
+  --popover: #ffffff;
+  --popover-foreground: #0b1b33;
+  --primary: #0b1b33;
+  --primary-foreground: #ffffff;
+  --secondary: #eef2f7;
+  --secondary-foreground: #0b1b33;
+  --muted: #eef2f7;
+  --muted-foreground: #5a6b85;
+  --accent: #eef2f7;
+  --accent-foreground: #0b1b33;
+  --destructive: #c2410c;
+  --border: #e1e6ee;
+  --input: #cfd7e2;
+  --ring: #0b1b33;
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-sans antialiased; font-size: 14px; }
+}
+
+@keyframes needs-you {
+  0%, 100% { box-shadow: 0 0 0 3px rgb(240 90 60 / 0.25); }
+  50% { box-shadow: 0 0 0 6px rgb(240 90 60 / 0.08); }
+}
+.needs-you { animation: needs-you 1.4s ease-in-out infinite; }
