@@ -13,7 +13,7 @@ async function waitFor(name: string, want: string[], timeoutMs = 300_000) {
   const end = Date.now() + timeoutMs;
   let last = "none";
   while (Date.now() < end) {
-    const r = await fetch(`${BASE}/api/batches/${name}`);
+    const r = await fetch(`${BASE}/api/batches/by-name/${name}`);
     if (r.ok) {
       const b = (await r.json()) as { id: number; state: string };
       last = b.state;
@@ -30,18 +30,18 @@ sh("pnpm notices");
 
 sh(`pnpm upload out/batches/normal normal-${run} --post`);
 const normal = await waitFor(`normal-${run}`, ["LOADED", "ESCALATED", "AWAITING_REVIEW"]);
-assert.equal(normal.state, "LOADED", `normal batch: see ${BASE}/batches/${normal.id}`);
+assert.equal(normal.state, "LOADED", `normal batch: see ${BASE.replace(":3000", ":5173")}/batches/${normal.id}`);
 
 sh(`pnpm upload out/batches/demo demo-${run} --post`);
 const demo = await waitFor(`demo-${run}`, ["AWAITING_REVIEW", "ESCALATED", "LOADED"]);
-assert.equal(demo.state, "AWAITING_REVIEW", `demo batch: see ${BASE}/batches/${demo.id}`);
+assert.equal(demo.state, "AWAITING_REVIEW", `demo batch: see ${BASE.replace(":3000", ":5173")}/batches/${demo.id}`);
 
-const res = await fetch(`${BASE}/batches/${demo.id}/approve`, {
+const res = await fetch(`${BASE}/api/batches/${demo.id}/approve`, {
   method: "POST",
-  body: new URLSearchParams({ reviewer: "e2e" }),
-  redirect: "manual",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ reviewer: "e2e" }),
 });
-assert.equal(res.status, 303, await res.text());
+assert.equal(res.status, 200, await res.text());
 await waitFor(`demo-${run}`, ["RELOADED"], 30_000);
 
 const db = makeDb(process.env.DATABASE_URL!);
