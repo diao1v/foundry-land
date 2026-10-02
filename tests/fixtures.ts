@@ -1,3 +1,7 @@
+import type { ExtractedDoc } from "../src/azure/docint";
+import { loadLocalNotices } from "../src/demo/notices";
+import { processBatch, startBatch, type Deps } from "../src/orchestrator";
+import { db } from "./db";
 import type { DriftReport, Investigation } from "../src/agents/schemas";
 import type { FixOp } from "../src/fix";
 import { historyInvoices, type InvoiceData } from "../src/demo/invoice-data";
@@ -49,3 +53,34 @@ export const INVESTIGATION: Investigation = {
   citations: [{ docId: "Example Orthopaedics Ltd — changes to our invoices", quote: "First, invoice totals will exclude GST." }],
   unexplained: [],
 };
+
+// What Document Intelligence would return for a generated invoice
+export const extractedDoc = (inv: InvoiceData): ExtractedDoc => ({
+  pageWidth: 8.27,
+  pageHeight: 11.69,
+  unit: "inch",
+  lineItemsTotal: inv.lineItemsTotal,
+  fields: inv.fields.map(([label, value]) => ({ label, value, confidence: 0.95, page: 1, polygon: [1, 1, 2, 1, 2, 1.2, 1, 1.2] })),
+});
+
+// Orchestrator deps with no Azure: files = { "<batch>/<file>.pdf": invoice }
+export function fakeDeps(files: Record<string, InvoiceData>, over: Partial<Deps> = {}): Deps {
+  return {
+    db,
+    listPdfs: async (name) => Object.keys(files).filter((p) => p.startsWith(`${name}/`)),
+    extract: async (path) => extractedDoc(files[path]),
+    drift: async () => DRIFT,
+    investigate: async () => INVESTIGATION,
+    proposeFix: async () => ({ operations: GOOD_FIX, reasoning: "rename + GST" }),
+    notices: async () => loadLocalNotices(),
+    notifyReview: async () => {},
+    ...over,
+  };
+}
+
+export async function runBatch(name: string, invs: InvoiceData[], over: Partial<Deps> = {}) {
+  const d = fakeDeps(Object.fromEntries(invs.map((inv) => [`${name}/${inv.invoiceNo}.pdf`, inv])), over);
+  const id = (await startBatch(db, name))!;
+  await processBatch(d, id);
+  return { id, d };
+}
