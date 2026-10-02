@@ -17,6 +17,7 @@ it("parses money", () => {
 it("normalises labels from Document Intelligence", () => {
   expect(normalizeLabel("  Provider No.: ")).toBe("Provider No.");
   expect(normalizeLabel("Total (incl. GST):")).toBe("Total (incl. GST)");
+  expect(normalizeLabel("Provider No .")).toBe("Provider No.");
 });
 
 it("maps exact labels and the Total prefix", () => {

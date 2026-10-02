@@ -9,5 +9,5 @@
     { "field": "total", "labels": ["Total"], "match": "prefix" }
   ],
   "derived": [],
-  "ignore": []
+  "ignore": ["Description", "Fee"]
 }

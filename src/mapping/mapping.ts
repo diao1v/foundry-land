@@ -26,7 +26,9 @@ export type MappedDoc = {
   unmappedLabels: string[];
 };
 
-export const normalizeLabel = (label: string) => label.trim().replace(/\s*:$/, "");
+// Document Intelligence may add a space before punctuation: "Provider No ." → "Provider No."
+export const normalizeLabel = (label: string) =>
+  label.trim().replace(/\s*:$/, "").replace(/\s+([.,])/g, "$1").replace(/\s+/g, " ");
 
 const matches = (rule: FieldRule, label: string) =>
   rule.labels.some((l) => (rule.match === "exact" ? label === l : label.startsWith(l)));
