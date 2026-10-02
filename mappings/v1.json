@@ -1,0 +1,13 @@
+{
+  "fields": [
+    { "field": "provider_no", "labels": ["Provider No."], "match": "exact" },
+    { "field": "invoice_no", "labels": ["Invoice No."], "match": "exact" },
+    { "field": "invoice_date", "labels": ["Invoice Date"], "match": "exact" },
+    { "field": "service_date", "labels": ["Date of Service"], "match": "exact" },
+    { "field": "patient_name", "labels": ["Patient"], "match": "exact" },
+    { "field": "member_no", "labels": ["Member No."], "match": "exact" },
+    { "field": "total", "labels": ["Total"], "match": "prefix" }
+  ],
+  "derived": [],
+  "ignore": []
+}
