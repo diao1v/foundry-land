@@ -15,6 +15,7 @@ const result: AnalyzeResult = {
     },
     { key: { content: "Member No.", boundingRegions: [{ pageNumber: 1, polygon: box(1, 2) }] }, confidence: 0.5 },
     { key: { content: "Knee" }, value: { content: "$1,667.50" }, confidence: 0.9 }, // a table row, read again as a pair
+    { key: { content: "Consult" }, value: { content: "$207.00" }, confidence: 0.6 }, // the start of a table cell
   ],
   tables: [
     { cells: [cell(0, 0, "Description"), cell(0, 1, "Fee"), cell(1, 0, "Consultation"), cell(1, 1, "$207.00"), cell(2, 0, "Knee"), cell(2, 1, "$1,667.50")] },

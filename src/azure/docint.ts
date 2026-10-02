@@ -66,9 +66,10 @@ function feeColumnTotal(tables: Table[]): number | null {
 
 export function toExtractedDoc(r: AnalyzeResult): ExtractedDoc {
   const page = r.pages[0];
-  // DI sometimes also reads table rows as key-value pairs ("Specialist consultation: $180.00"). Those are line items, not fields.
-  const cells = new Set((r.tables ?? []).flatMap((t) => t.cells.map((c) => normalizeLabel(c.content))));
-  const pairs = (r.keyValuePairs ?? []).filter((kv) => !cells.has(normalizeLabel(kv.key.content)));
+  // DI sometimes also reads table rows as key-value pairs ("Specialist consultation: $180.00"), or just the start
+  // of a cell ("Specialist"). Those are line items, not fields.
+  const cells = (r.tables ?? []).flatMap((t) => t.cells.map((c) => normalizeLabel(c.content)));
+  const pairs = (r.keyValuePairs ?? []).filter((kv) => !cells.some((c) => c.startsWith(normalizeLabel(kv.key.content))));
   const fields = pairs.map((kv) => {
     const region = kv.value?.boundingRegions?.[0] ?? kv.key.boundingRegions?.[0];
     return {
