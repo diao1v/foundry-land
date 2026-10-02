@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, expect, it } from "vitest";
 import { IllegalTransition, transition } from "../src/audit";
 import { auditEvents, batches, invoices, mappingVersions } from "../src/db/schema";
@@ -46,8 +47,9 @@ it("resetDemo removes batches, their invoices and later mappings, and keeps hist
   const [b] = await db.insert(batches).values({ name: "demo-x", state: "RELOADED" }).returning();
   await db.insert(invoices).values({ providerNo: "EO-20417", invoiceNo: "INV-X", total: 1, batchId: b.id });
   await db.insert(mappingVersions).values({ version: 2, mapping: V1, createdBy: "t", reason: "t" });
+  await db.update(mappingVersions).set({ mapping: { ...V1, ignore: [] } }).where(eq(mappingVersions.version, 1));
   await resetDemo(db);
   expect(await db.$count(batches)).toBe(0);
   expect(await db.$count(invoices)).toBe(60);
-  expect((await db.select().from(mappingVersions)).map((v) => v.version)).toEqual([1]);
+  expect((await db.select().from(mappingVersions)).map((v) => [v.version, v.mapping])).toEqual([[1, V1]]);
 });

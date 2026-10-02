@@ -18,22 +18,31 @@ export type ExtractedDoc = { pageWidth: number; pageHeight: number; unit: string
 const docintToken = tokenFor("https://cognitiveservices.azure.com/.default");
 const API = "api-version=2024-11-30";
 
+// F0 tier has a low call rate. On 429, wait as long as the service asks (max 60 s), then try again.
+async function fetchPatient(url: string, init: RequestInit, timeoutMs: number, tries = 6): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status !== 429 || attempt >= tries) return res;
+    const retryAfter = res.headers.get("retry-after");
+    await new Promise((r) => setTimeout(r, Math.min(retryAfter == null ? 30 : Number(retryAfter) || 0, 60) * 1000));
+  }
+}
+
 export async function analyzeLayout(cfg: Pick<Config, "DOCINT_ENDPOINT" | "DOCINT_KEY">, pdf: Buffer): Promise<AnalyzeResult> {
   const base = cfg.DOCINT_ENDPOINT.replace(/\/$/, "");
   const auth: Record<string, string> = cfg.DOCINT_KEY
     ? { "Ocp-Apim-Subscription-Key": cfg.DOCINT_KEY }
     : { Authorization: `Bearer ${await docintToken()}` };
-  const post = await fetch(`${base}/documentintelligence/documentModels/prebuilt-layout:analyze?${API}&features=keyValuePairs`, {
-    method: "POST",
-    headers: { ...auth, "Content-Type": "application/json" },
-    body: JSON.stringify({ base64Source: pdf.toString("base64") }),
-    signal: AbortSignal.timeout(30_000),
-  });
+  const post = await fetchPatient(
+    `${base}/documentintelligence/documentModels/prebuilt-layout:analyze?${API}&features=keyValuePairs`,
+    { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ base64Source: pdf.toString("base64") }) },
+    30_000,
+  );
   const op = post.headers.get("Operation-Location");
   if (post.status !== 202 || !op) throw new Error(`Document Intelligence ${post.status}: ${(await post.text()).slice(0, 300)}`);
   for (let i = 0; i < 60; i++) {
     await new Promise((r) => setTimeout(r, 1000));
-    const r = (await (await fetch(op, { headers: auth, signal: AbortSignal.timeout(15_000) })).json()) as {
+    const r = (await (await fetchPatient(op, { headers: auth }, 15_000)).json()) as {
       status: string;
       error?: { message?: string };
       analyzeResult?: AnalyzeResult;
@@ -57,7 +66,10 @@ function feeColumnTotal(tables: Table[]): number | null {
 
 export function toExtractedDoc(r: AnalyzeResult): ExtractedDoc {
   const page = r.pages[0];
-  const fields = (r.keyValuePairs ?? []).map((kv) => {
+  // DI sometimes also reads table rows as key-value pairs ("Specialist consultation: $180.00"). Those are line items, not fields.
+  const cells = new Set((r.tables ?? []).flatMap((t) => t.cells.map((c) => normalizeLabel(c.content))));
+  const pairs = (r.keyValuePairs ?? []).filter((kv) => !cells.has(normalizeLabel(kv.key.content)));
+  const fields = pairs.map((kv) => {
     const region = kv.value?.boundingRegions?.[0] ?? kv.key.boundingRegions?.[0];
     return {
       label: normalizeLabel(kv.key.content),

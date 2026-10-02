@@ -1,4 +1,4 @@
-import { gt, isNotNull } from "drizzle-orm";
+import { eq, gt, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { batches, invoices, mappingVersions } from "../db/schema";
 import { Mapping } from "../mapping/mapping";
@@ -34,4 +34,6 @@ export async function resetDemo(db: Db) {
   await db.delete(invoices).where(isNotNull(invoices.batchId));
   await db.delete(batches); // cascades to documents, fields, incidents, proposals, audit events
   await db.delete(mappingVersions).where(gt(mappingVersions.version, 1));
+  // v1 follows mappings/v1.json, so calibration edits (e.g. "ignore") reach an already-seeded database
+  await db.update(mappingVersions).set({ mapping: Mapping.parse(v1) }).where(eq(mappingVersions.version, 1));
 }
