@@ -36,3 +36,13 @@ it.each([
   expect(() => applyFix(V1, [op])).toThrow(FixRejected);
   expect(() => applyFix(V1, [op])).toThrow(msg);
 });
+
+it("the live batch (5 invoices) is caught by the value check and fixed by the good fix", () => {
+  const docs = BATCHES.live().map((inv, i) => sourceDoc(inv, i + 1));
+  const before = dryRun(V1, [], docs, HISTORY).report;
+  expect(before.stats.avgTotal).toBe(912.9);
+  expect(before.findings.find((f) => f.check === "value")!.message).toMatch(/-8\.1%/);
+  const after = dryRun(V1, GOOD_FIX, docs, HISTORY).report;
+  expect(after).toMatchObject({ passed: true });
+  expect(after.stats.avgTotal).toBe(993.6);
+});

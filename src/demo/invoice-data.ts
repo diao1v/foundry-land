@@ -62,6 +62,9 @@ export const BATCHES = {
     Array.from({ length: 10 }, (_, k) =>
       k < 2 ? makeInvoice(200 + k, "v1", day(9, 29)) : makeInvoice(200 + k, "v2", day(10, k - 1)),
     ),
+  // Live demo (drag and drop): one invoice per procedure, so the fixed average equals history exactly.
+  // INV-10300 is the old layout (knee, procedure 0); INV-10301…10304 are the new layout.
+  live: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(300 + k, k === 0 ? "v1" : "v2", k === 0 ? day(9, 30) : day(10, 2))),
 };
 
 // ~2 months of past v1 invoices (12 full cycles), seeded straight into Postgres

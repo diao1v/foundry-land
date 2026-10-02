@@ -14,7 +14,7 @@ import { fakeDeps, runBatch } from "./fixtures";
 const SECRET = "test-secret-123456";
 const webDir = mkdtempSync(join(tmpdir(), "web-"));
 writeFileSync(join(webDir, "index.html"), "<!doctype html><title>foundry-land</title><div id=root></div>");
-const app = (d = fakeDeps({})) => makeApp(d, { eventSecret: SECRET, pdf: async () => Buffer.from("%PDF"), webDir });
+const app = (d = fakeDeps({})) => makeApp(d, { eventSecret: SECRET, pdf: async () => Buffer.from("%PDF"), upload: async () => {}, webDir });
 const post = (body: unknown, headers: Record<string, string> = {}, key = SECRET) =>
   app().request(`/events/blob?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
 const json = (body: unknown) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

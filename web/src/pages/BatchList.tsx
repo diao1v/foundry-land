@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { DropZone } from "@/components/DropZone";
 import { Shell } from "@/components/Shell";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -56,6 +57,8 @@ export function BatchList() {
           <span className={cn("size-[7px] rounded-full", error ? "bg-warn" : "bg-ok")} /> Live · updates every 2 s
         </span>
       </div>
+
+      <DropZone />
 
       {data && (
         <>

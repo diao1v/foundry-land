@@ -1,8 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { eq } from "drizzle-orm";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { batchDetail, documentView, listBatches } from "./api";
 import { audit, IllegalTransition } from "./audit";
@@ -10,7 +12,12 @@ import { batches, documents } from "./db/schema";
 import { batchNameFromEvent, type EGEvent } from "./events";
 import { approve, processBatch, reject, ReviewError, startBatch, type Deps } from "./orchestrator";
 
-export type AppOptions = { eventSecret: string; pdf(blobPath: string): Promise<Buffer>; webDir?: string };
+export type AppOptions = {
+  eventSecret: string;
+  pdf(blobPath: string): Promise<Buffer>;
+  upload(path: string, data: Buffer, contentType: string): Promise<void>; // into the "invoices" container
+  webDir?: string;
+};
 
 const Approve = z.object({ reviewer: z.string().trim().min(1).max(40) });
 const Reject = Approve.extend({ reason: z.string().trim().min(1).max(500) });
@@ -20,6 +27,16 @@ export function makeApp(deps: Deps, opts: AppOptions) {
   const { db } = deps;
   const webDir = opts.webDir ?? "web/dist";
   const app = new Hono();
+
+  // Start a batch once (duplicate names are ignored) and process it in the background.
+  const kickOff = async (name: string) => {
+    const batchId = await startBatch(db, name);
+    if (batchId == null) return null;
+    void processBatch(deps, batchId).catch((err) =>
+      audit(db, { batchId, actor: "system", action: "batch.crashed", details: { error: String(err) } }).catch(() => console.error(err)),
+    );
+    return batchId;
+  };
 
   // Event Grid webhook. Shared secret in the query string (demo-level protection).
   app.post("/events/blob", async (c) => {
@@ -32,12 +49,7 @@ export function makeApp(deps: Deps, opts: AppOptions) {
     for (const e of events) {
       const name = batchNameFromEvent(e);
       if (!name) continue;
-      const batchId = await startBatch(db, name);
-      if (batchId == null) continue; // duplicate delivery
-      // Reply fast (Event Grid waits at most 30 s); process in the background.
-      void processBatch(deps, batchId).catch((err) =>
-        audit(db, { batchId, actor: "system", action: "batch.crashed", details: { error: String(err) } }).catch(() => console.error(err)),
-      );
+      await kickOff(name); // replies fast (Event Grid waits at most 30 s); duplicate deliveries are ignored
     }
     return c.body(null, 200);
   });
@@ -67,6 +79,39 @@ export function makeApp(deps: Deps, opts: AppOptions) {
     await reject(deps, id(c.req.param("id")), body.data.reviewer, body.data.reason);
     return c.json({ ok: true });
   });
+
+  const MAX_FILES = 20;
+  const MAX_BYTES = 5 * 1024 * 1024;
+  const bad = (c: Context, error: string) => c.json({ error }, 400);
+
+  // Drag-and-drop upload: same Blob layout as scripts/upload-batch.ts, then start the batch.
+  // On Azure, Event Grid also fires for batch.json; startBatch ignores the duplicate.
+  app.post(
+    "/api/uploads",
+    bodyLimit({ maxSize: MAX_FILES * MAX_BYTES + 1024 * 1024, onError: (c) => c.json({ error: "Upload too large" }, 413) }),
+    async (c) => {
+      const raw = (await c.req.parseBody({ all: true })).files;
+      const files = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((f): f is File => f instanceof File);
+      if (!files.length) return bad(c, "Drop at least one PDF.");
+      if (files.length > MAX_FILES) return bad(c, `At most ${MAX_FILES} files per batch.`);
+      const named: { name: string; data: Buffer }[] = [];
+      for (const f of files) {
+        if (f.size > MAX_BYTES) return bad(c, `${f.name} is larger than 5 MB.`);
+        const name = basename(f.name).replace(/[^A-Za-z0-9._-]/g, "_");
+        if (!/\.pdf$/i.test(name)) return bad(c, `${f.name}: the file name must end in .pdf.`);
+        const data = Buffer.from(await f.arrayBuffer());
+        if (data.subarray(0, 5).toString("latin1") !== "%PDF-") return bad(c, `${f.name} is not a PDF.`);
+        if (named.some((n) => n.name === name)) return bad(c, `Two files have the same name: ${name}.`);
+        named.push({ name, data });
+      }
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15); // yyyymmdd-hhmmss
+      const batch = `upload-${stamp}-${randomBytes(2).toString("hex")}`;
+      for (const n of named) await opts.upload(`${batch}/${n.name}`, n.data, "application/pdf");
+      const manifest = { files: named.map((n) => n.name), uploadedAt: new Date().toISOString(), source: "web" };
+      await opts.upload(`${batch}/batch.json`, Buffer.from(JSON.stringify(manifest)), "application/json");
+      return c.json({ id: await kickOff(batch), name: batch });
+    },
+  );
 
   app.get("/api/documents/:id", async (c) => {
     const r = await documentView(db, id(c.req.param("id")), c.req.query("mapping") === "proposed" ? "proposed" : "batch");
