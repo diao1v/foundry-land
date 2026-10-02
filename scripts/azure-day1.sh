@@ -3,7 +3,7 @@
 # Usage: SUFFIX=yw7 bash scripts/azure-day1.sh
 set -euo pipefail
 RG=rg-foundry-land
-LOC=${LOC:-australiaeast}
+LOC=${LOC:-westus}
 SUFFIX=${SUFFIX:?set SUFFIX to a short unique string, e.g. yw7}
 STORAGE=stfoundryland$SUFFIX
 DOCINT=di-foundry-land-$SUFFIX
