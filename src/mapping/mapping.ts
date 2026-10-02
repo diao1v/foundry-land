@@ -30,11 +30,17 @@ export type MappedDoc = {
 export const normalizeLabel = (label: string) =>
   label.trim().replace(/\s*:$/, "").replace(/\s+([.,])/g, "$1").replace(/\s+/g, " ");
 
-const matches = (rule: FieldRule, label: string) =>
-  rule.labels.some((l) => (rule.match === "exact" ? label === l : label.startsWith(l)));
+// The rule a label matches (first match wins, in mapping order), and which of its labels matched
+export function ruleForLabel(mapping: Mapping, label: string) {
+  const l = normalizeLabel(label);
+  for (const r of mapping.fields) {
+    const ruleLabel = r.labels.find((x) => (r.match === "exact" ? l === x : l.startsWith(x)));
+    if (ruleLabel) return { field: r.field, match: l === ruleLabel ? ("exact" as const) : ("prefix" as const), ruleLabel };
+  }
+  return undefined;
+}
 
-export const fieldForLabel = (mapping: Mapping, label: string) =>
-  mapping.fields.find((r) => matches(r, normalizeLabel(label)))?.field;
+export const fieldForLabel = (mapping: Mapping, label: string) => ruleForLabel(mapping, label)?.field;
 
 export function applyMapping(mapping: Mapping, fields: RawField[]): MappedDoc {
   const values: Record<string, string> = {};
