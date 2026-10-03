@@ -18,12 +18,12 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
     setError(undefined);
     try {
       await postJson(`/api/batches/${d.batch.id}/${kind}`, kind === "approve" ? { reviewer: REVIEWER } : { reviewer: REVIEWER, reason });
-      onDone();
+      // keep the button disabled: the refetched batch replaces this card
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setPending(undefined);
     }
+    onDone(); // refetch either way: after a 409 the batch may already be approved in another tab
   };
 
   const reject = (
@@ -102,7 +102,9 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
         </>
       )}
 
-      {error && <p className="mt-3 rounded-md bg-coral-soft px-3 py-2 text-[12.5px] text-coral-ink">{error}</p>}
+      {error && (dec.state === "waiting" || dec.state === "escalated") && (
+        <p className="mt-3 rounded-md bg-coral-soft px-3 py-2 text-[12.5px] text-coral-ink">{error}</p>
+      )}
     </Card>
   );
 }

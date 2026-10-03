@@ -93,3 +93,16 @@ it("serves the web app for page URLs (SPA fallback), but not for unknown API rou
   expect(await page.text()).toContain("<title>foundry-land</title>");
   expect((await app().request("/api/nope")).status).toBe(404);
 });
+
+it("two approvals at the same moment: one succeeds, the other gets a clear 409, one new mapping version", async () => {
+  const { id, d } = await runBatch("demo", BATCHES.demo());
+  const a = app(d);
+  const [r1, r2] = await Promise.all([
+    a.request(`/api/batches/${id}/approve`, json({ reviewer: "yiwei" })),
+    a.request(`/api/batches/${id}/approve`, json({ reviewer: "sam" })),
+  ]);
+  expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+  const loser = r1.status === 409 ? r1 : r2;
+  expect((await loser.json()).error).toMatch(/not AWAITING_REVIEW/);
+  expect(await db.$count(mappingVersions)).toBe(2);
+});

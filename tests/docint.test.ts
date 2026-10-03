@@ -57,3 +57,18 @@ it("waits and retries when the free tier answers 429", async () => {
     vi.unstubAllGlobals();
   }
 });
+
+it("asks Document Intelligence for page 1 only (cost guard: invoices are one page)", async () => {
+  const replies = [
+    new Response(null, { status: 202, headers: { "Operation-Location": "https://di.example.com/op/2" } }),
+    new Response(JSON.stringify({ status: "succeeded", analyzeResult: result })),
+  ];
+  const fetchMock = vi.fn(async (_url: string) => replies.shift()!);
+  vi.stubGlobal("fetch", fetchMock);
+  try {
+    await analyzeLayout({ DOCINT_ENDPOINT: "https://di.example.com/", DOCINT_KEY: "k" }, Buffer.from("%PDF"));
+    expect(fetchMock.mock.calls[0][0]).toContain("&pages=1");
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

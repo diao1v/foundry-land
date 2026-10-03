@@ -34,7 +34,7 @@ export async function analyzeLayout(cfg: Pick<Config, "DOCINT_ENDPOINT" | "DOCIN
     ? { "Ocp-Apim-Subscription-Key": cfg.DOCINT_KEY }
     : { Authorization: `Bearer ${await docintToken()}` };
   const post = await fetchPatient(
-    `${base}/documentintelligence/documentModels/prebuilt-layout:analyze?${API}&features=keyValuePairs`,
+    `${base}/documentintelligence/documentModels/prebuilt-layout:analyze?${API}&features=keyValuePairs&pages=1`,
     { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ base64Source: pdf.toString("base64") }) },
     30_000,
   );

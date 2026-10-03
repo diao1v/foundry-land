@@ -91,7 +91,14 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
     if (!inv) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
       <Panel title="Investigator · searched the provider notices">
-        <p>{inv.explanation}</p>
+        {inv.explanationFound ? (
+          <p>{inv.explanation}</p>
+        ) : (
+          <p className="rounded-md bg-warn-soft px-3 py-2">
+            <b className="font-semibold">No verified explanation.</b>{" "}
+            <span className="text-muted-foreground">Agent's note, not backed by any verified quote: “{inv.explanation}”</span>
+          </p>
+        )}
         {!inv.explanationFound && inv.verifiedCitations.length > 0 && (
           <p className="mt-3 text-xs font-semibold text-muted-foreground">What the notices say — none of them explains the change</p>
         )}

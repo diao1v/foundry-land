@@ -13,6 +13,7 @@ export function PdfCanvas({ url, unit, selected, onPick }: { url: string; unit: 
 
   useEffect(() => {
     let cancelled = false;
+    setError(undefined); // a new invoice (or the server back up) gets a fresh try
     let task: ReturnType<pdfjs.PDFPageProxy["render"]> | undefined;
     (async () => {
       try {

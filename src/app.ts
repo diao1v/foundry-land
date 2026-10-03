@@ -135,6 +135,9 @@ export function makeApp(deps: Deps, opts: AppOptions) {
 
   app.onError((err, c) => {
     if (err instanceof ReviewError || err instanceof IllegalTransition) return c.json({ error: err.message }, 409);
+    // Backstop: a second mapping version with the same number (primary key) means someone approved first
+    const pg = err as { code?: string; cause?: { code?: string } };
+    if ((pg.code ?? pg.cause?.code) === "23505") return c.json({ error: "Already approved by someone else. Reload the page." }, 409);
     console.error(err);
     return c.json({ error: "Something went wrong. See the server log." }, 500);
   });

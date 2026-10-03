@@ -234,7 +234,21 @@ async function runIncident(
   await transition(db, batchId, "ESCALATED", SYSTEM, "fix.rounds_exhausted", { rounds: MAX_ROUNDS });
 }
 
+// ponytail: in-process lock, enough for one app instance; use SELECT … FOR UPDATE if it ever runs on several replicas
+const approving = new Map<number, Promise<void>>();
+
+// Approvals of the same batch run one after another, so a second one sees RELOADED and is refused cleanly.
 export async function approve(deps: Deps, batchId: number, reviewer: string) {
+  const run = (approving.get(batchId) ?? Promise.resolve()).catch(() => {}).then(() => approveOnce(deps, batchId, reviewer));
+  approving.set(batchId, run);
+  try {
+    await run;
+  } finally {
+    if (approving.get(batchId) === run) approving.delete(batchId);
+  }
+}
+
+async function approveOnce(deps: Deps, batchId: number, reviewer: string) {
   const { db } = deps;
   const actor = `human:${reviewer}`;
   const [b] = await db.select().from(batches).where(eq(batches.id, batchId));
