@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { runChecks, type CheckReport, type History } from "./checks";
+import { runChecks, type CheckReport, type ExplainedFee, type History } from "./checks";
 import { parseExpression } from "./mapping/expr";
 import { applyMapping, type Mapping, type SourceDoc } from "./mapping/mapping";
 
@@ -42,11 +42,12 @@ export function applyFix(mapping: Mapping, ops: FixOp[]): Mapping {
 }
 
 // In memory only. Writes nothing.
-export function dryRun(mapping: Mapping, ops: FixOp[], docs: SourceDoc[], history: History) {
+export function dryRun(mapping: Mapping, ops: FixOp[], docs: SourceDoc[], history: History, explained: ExplainedFee[] = []) {
   const next = applyFix(mapping, ops);
   const report: CheckReport = runChecks(
-    docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(next, d.fields), lineItemsTotal: d.lineItemsTotal })),
+    docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(next, d.fields), lineItemsTotal: d.lineItemsTotal, lineItems: d.lineItems })),
     history,
+    explained,
   );
   return { mapping: next, report };
 }

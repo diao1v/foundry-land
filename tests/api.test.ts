@@ -87,7 +87,7 @@ it("document view with the batch mapping: unmapped labels, prefix match, positio
   expect(by("Total (excl. GST)")).toMatchObject({ field: "total", matchedBy: "prefix" });
   expect(r.mappedCount).toBe(r.fields.length - 2);
   expect(r.note).toBe(
-    'Mapping v1 reads "total" from any label starting with "Total", so $440.00 maps without a warning even though the label says "Total (excl. GST)". Only the value check (−9.8% vs history) catches it.',
+    'Mapping v1 reads "total" from any label starting with "Total", so $440.00 maps without a warning even though the label says "Total (excl. GST)". Only the fee check catches it (Specialist consultation −13.0% vs history).',
   );
 });
 

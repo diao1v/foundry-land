@@ -53,3 +53,10 @@ it("resetDemo removes batches, their invoices and later mappings, and keeps hist
   expect(await db.$count(invoices)).toBe(60);
   expect((await db.select().from(mappingVersions)).map((v) => [v.version, v.mapping])).toEqual([[1, V1]]);
 });
+
+it("seedHistory stores line items, also on history rows seeded before line items existed", async () => {
+  await db.insert(invoices).values({ providerNo: "EO-20417", invoiceNo: "INV-10000", total: 1874.5, batchId: null, mappingVersion: 1 });
+  await seedHistory(db);
+  const [row] = await db.select().from(invoices).where(eq(invoices.invoiceNo, "INV-10000"));
+  expect(row.lineItems).toEqual([{ description: "Specialist consultation", fee: 207 }, { description: "Knee arthroscopy", fee: 1667.5 }]);
+});

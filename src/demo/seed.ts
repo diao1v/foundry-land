@@ -1,4 +1,4 @@
-import { eq, gt, isNotNull } from "drizzle-orm";
+import { eq, gt, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { batches, invoices, mappingVersions } from "../db/schema";
 import { Mapping } from "../mapping/mapping";
@@ -24,9 +24,11 @@ export async function seedHistory(db: Db) {
         total: inv.total,
         batchId: null,
         mappingVersion: 1,
+        lineItems: inv.lines.map((l) => ({ description: l.desc, fee: l.fee })), // v1 fees include GST
       })),
     )
-    .onConflictDoNothing();
+    // fills line items on history rows seeded before they existed
+    .onConflictDoUpdate({ target: [invoices.providerNo, invoices.invoiceNo], set: { lineItems: sql`excluded.line_items` } });
 }
 
 // Back to the start of the demo: no batches, mapping v1 only, seeded history kept.

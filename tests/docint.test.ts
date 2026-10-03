@@ -28,6 +28,7 @@ it("turns a layout result into fields with boxes and a line-item total", () => {
     pageHeight: 11.6806,
     unit: "inch",
     lineItemsTotal: 1874.5,
+    lineItems: [{ description: "Consultation", fee: 207 }, { description: "Knee", fee: 1667.5 }],
     fields: [
       { label: "Provider No.", value: "EO-20417", confidence: 0.93, page: 1, polygon: box(2.2, 1) },
       { label: "Member No.", value: "", confidence: 0.5, page: 1, polygon: box(1, 2) }, // key with no value
@@ -39,6 +40,8 @@ it("gives no line-item total when there is no Fee column or a fee is unreadable"
   expect(toExtractedDoc({ ...result, tables: [] }).lineItemsTotal).toBeNull();
   const bad = { cells: [cell(0, 0, "Fee"), cell(1, 0, "call us")] };
   expect(toExtractedDoc({ ...result, tables: [bad] }).lineItemsTotal).toBeNull();
+  expect(toExtractedDoc({ ...result, tables: [] }).lineItems).toEqual([]);
+  expect(toExtractedDoc({ ...result, tables: [bad] }).lineItems).toEqual([]); // the unreadable fee row is skipped
 });
 
 it("waits and retries when the free tier answers 429", async () => {

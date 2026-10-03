@@ -1,5 +1,5 @@
 import type { Config } from "../config";
-import { normalizeLabel, type RawField } from "../mapping/mapping";
+import { type LineItem, normalizeLabel, type RawField } from "../mapping/mapping";
 import { parseMoney, round2 } from "../mapping/money";
 import { tokenFor } from "./auth";
 
@@ -13,7 +13,11 @@ export type AnalyzeResult = {
   tables?: Table[];
 };
 export type ExtractedField = RawField & { page: number; polygon: number[] };
-export type ExtractedDoc = { pageWidth: number; pageHeight: number; unit: string; fields: ExtractedField[]; lineItemsTotal: number | null };
+export type ExtractedDoc = {
+  pageWidth: number; pageHeight: number; unit: string; fields: ExtractedField[];
+  lineItemsTotal: number | null; // null when any fee is unreadable
+  lineItems: LineItem[]; // readable rows only
+};
 
 const docintToken = tokenFor("https://cognitiveservices.azure.com/.default");
 const API = "api-version=2024-11-30";
@@ -53,15 +57,23 @@ export async function analyzeLayout(cfg: Pick<Config, "DOCINT_ENDPOINT" | "DOCIN
   throw new Error("Document Intelligence timed out after 60s");
 }
 
-function feeColumnTotal(tables: Table[]): number | null {
+// The fee table: a "Fee" column (required) and a "Description" column (optional)
+function lineItemsFrom(tables: Table[]): { items: LineItem[]; total: number | null } {
   for (const t of tables) {
-    const header = t.cells.find((c) => c.rowIndex === 0 && c.content.trim() === "Fee");
-    if (!header) continue;
-    const fees = t.cells.filter((c) => c.rowIndex > 0 && c.columnIndex === header.columnIndex).map((c) => parseMoney(c.content));
-    if (!fees.length || fees.some((f) => f == null)) return null;
-    return round2((fees as number[]).reduce((a, b) => a + b, 0));
+    const header = (name: string) => t.cells.find((c) => c.rowIndex === 0 && c.content.trim() === name);
+    const feeCol = header("Fee");
+    if (!feeCol) continue;
+    const descCol = header("Description");
+    const rows = [...new Set(t.cells.filter((c) => c.rowIndex > 0).map((c) => c.rowIndex))];
+    const parsed = rows.map((row) => {
+      const cell = (col?: { columnIndex: number }) => t.cells.find((c) => c.rowIndex === row && c.columnIndex === col?.columnIndex);
+      return { description: cell(descCol)?.content.trim() ?? "", fee: parseMoney(cell(feeCol)?.content) };
+    });
+    const items = parsed.filter((p): p is LineItem => p.fee != null);
+    const total = parsed.length && items.length === parsed.length ? round2(items.reduce((a, b) => a + b.fee, 0)) : null;
+    return { items, total };
   }
-  return null;
+  return { items: [], total: null };
 }
 
 export function toExtractedDoc(r: AnalyzeResult): ExtractedDoc {
@@ -80,5 +92,6 @@ export function toExtractedDoc(r: AnalyzeResult): ExtractedDoc {
       polygon: region?.polygon ?? [],
     };
   });
-  return { pageWidth: page.width, pageHeight: page.height, unit: page.unit, fields, lineItemsTotal: feeColumnTotal(r.tables ?? []) };
+  const { items, total } = lineItemsFrom(r.tables ?? []);
+  return { pageWidth: page.width, pageHeight: page.height, unit: page.unit, fields, lineItemsTotal: total, lineItems: items };
 }

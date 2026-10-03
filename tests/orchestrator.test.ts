@@ -18,6 +18,8 @@ it("loads a normal batch", async () => {
   const { id } = await run("normal", BATCHES.normal());
   expect(await stateOf(id)).toBe("LOADED");
   expect(await db.$count(invoices, eq(invoices.batchId, id))).toBe(5);
+  const [row] = await db.select().from(invoices).where(eq(invoices.invoiceNo, "INV-10100"));
+  expect(row.lineItems).toEqual([{ description: "Specialist consultation", fee: 207 }, { description: "Knee arthroscopy", fee: 1667.5 }]);
 });
 
 it("ignores a duplicate event for the same batch", async () => {
@@ -48,6 +50,7 @@ it("approve creates mapping v2 and reloads with GST-inclusive totals", async () 
   expect(rows).toHaveLength(10);
   const v2 = rows.find((r) => r.invoiceNo === "INV-10202")!;
   expect(v2).toMatchObject({ providerNo: "EO-20417", total: 506, gst: 66, mappingVersion: 2 });
+  expect(v2.lineItems).toEqual([{ description: "Specialist consultation", fee: 207 }, { description: "Fracture review", fee: 299 }]); // stored GST-inclusive
 });
 
 it("refuses a second approval", async () => {

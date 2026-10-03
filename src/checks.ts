@@ -1,4 +1,4 @@
-import { REQUIRED_FIELDS, type MappedDoc } from "./mapping/mapping";
+import { type LineItem, REQUIRED_FIELDS, type MappedDoc } from "./mapping/mapping";
 import { parseMoney, round2 } from "./mapping/money";
 
 export type Severity = "OK" | "INFO" | "WARNING" | "BREAKING";
@@ -7,15 +7,21 @@ export const maxSeverity = (...s: Severity[]): Severity =>
   s.reduce<Severity>((a, b) => (RANK[b] > RANK[a] ? b : a), "OK");
 
 export type Finding = {
-  check: "schema" | "confidence" | "totals" | "value";
+  check: "schema" | "confidence" | "totals" | "fee";
   severity: Severity;
   message: string;
   docs?: number[];
   labels?: string[];
   field?: string; // schema: the required field that is missing
+  procedure?: string; // fee: the procedure, its fee in this batch and the history median
+  fee?: number;
+  historyFee?: number;
+  explained?: boolean; // fee: a verified notice announced this price
 };
-export type CheckDoc = { documentId: number; mapped: MappedDoc; lineItemsTotal: number | null };
-export type History = { avgTotal: number | null; count: number };
+export type CheckDoc = { documentId: number; mapped: MappedDoc; lineItemsTotal: number | null; lineItems?: LineItem[] };
+// fees: per procedure key, history fees on the loaded basis
+export type History = { avgTotal: number | null; count: number; fees: Record<string, number[]> };
+export type ExplainedFee = { procedure: string; newFee: number };
 export type CheckReport = {
   severity: Severity;
   passed: boolean;
@@ -25,13 +31,27 @@ export type CheckReport = {
 
 // Calibration knobs: check them against real Document Intelligence output on Day 1.
 export const CONFIDENCE_MIN = 0.7;
-export const VALUE_DRIFT_MAX = 0.05;
-const MIN_HISTORY = 10;
+export const FEE_DRIFT_MAX = 0.05;
+const MIN_FEE_HISTORY = 3;
+
+export const procedureKey = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+export const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// A line fee on the same basis as the loaded total (after derived fields): fee × total / line-items total
+export function basisFees(d: CheckDoc): LineItem[] {
+  const total = parseMoney(d.mapped.values.total);
+  const k = total != null && d.lineItemsTotal ? total / d.lineItemsTotal : 1;
+  return (d.lineItems ?? []).map((l) => ({ description: l.description, fee: round2(l.fee * k) }));
+}
 
 const present = (d: CheckDoc, field: string) =>
   field === "total" ? parseMoney(d.mapped.values.total) != null : Boolean(d.mapped.values[field]);
 
-export function runChecks(docs: CheckDoc[], history: History): CheckReport {
+export function runChecks(docs: CheckDoc[], history: History, explained: ExplainedFee[] = []): CheckReport {
   const findings: Finding[] = [];
   const ids = (list: CheckDoc[]) => list.map((d) => d.documentId);
 
@@ -88,19 +108,40 @@ export function runChecks(docs: CheckDoc[], history: History): CheckReport {
     });
   }
 
-  // Value check: batch average total vs history
-  const totals = docs.map((d) => parseMoney(d.mapped.values.total)).filter((t): t is number => t != null);
-  const avgTotal = totals.length ? round2(totals.reduce((a, b) => a + b, 0) / totals.length) : null;
-  if (avgTotal != null && history.avgTotal != null && history.count >= MIN_HISTORY) {
-    const change = (avgTotal - history.avgTotal) / history.avgTotal;
-    if (Math.abs(change) > VALUE_DRIFT_MAX) {
-      findings.push({
-        check: "value",
-        severity: "WARNING",
-        message: `Average total ${avgTotal.toFixed(2)} is ${(change * 100).toFixed(1)}% vs history ${history.avgTotal.toFixed(2)} (${history.count} invoices)`,
-      });
+  // Fee check: same procedure, same provider → compare with the history median.
+  // (The batch average depends on the case mix, so it is shown but decides nothing.)
+  const byProc = new Map<string, { name: string; items: { doc: number; fee: number }[] }>();
+  for (const d of docs) {
+    for (const l of basisFees(d)) {
+      const key = procedureKey(l.description);
+      const e = byProc.get(key) ?? { name: l.description.trim(), items: [] };
+      e.items.push({ doc: d.documentId, fee: l.fee });
+      byProc.set(key, e);
     }
   }
+  for (const [key, e] of byProc) {
+    const hist = history.fees[key] ?? [];
+    if (hist.length < MIN_FEE_HISTORY) continue;
+    const historyFee = round2(median(hist));
+    const off = e.items.filter((x) => Math.abs(x.fee - historyFee) / historyFee > FEE_DRIFT_MAX);
+    if (!off.length) continue;
+    const fee = round2(median(off.map((x) => x.fee)));
+    const change = (fee - historyFee) / historyFee;
+    const isExplained = explained.some((x) => procedureKey(x.procedure) === key && Math.abs(x.newFee - fee) <= 0.01);
+    findings.push({
+      check: "fee",
+      severity: isExplained ? "INFO" : "WARNING",
+      message: `Fee for "${e.name}" ${fee.toFixed(2)} is ${(change * 100).toFixed(1)}% vs history ${historyFee.toFixed(2)} (${hist.length} invoices)${isExplained ? " — announced by the clinic" : ""}`,
+      docs: [...new Set(off.map((x) => x.doc))],
+      procedure: e.name,
+      fee,
+      historyFee,
+      ...(isExplained ? { explained: true } : {}),
+    });
+  }
+
+  const totals = docs.map((d) => parseMoney(d.mapped.values.total)).filter((t): t is number => t != null);
+  const avgTotal = totals.length ? round2(totals.reduce((a, b) => a + b, 0) / totals.length) : null;
 
   const severity = maxSeverity(...findings.map((f) => f.severity));
   return {

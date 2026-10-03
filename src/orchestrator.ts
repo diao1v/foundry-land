@@ -4,7 +4,7 @@ import { verifyCitations } from "./agents/citations";
 import type { DriftReport, FixProposal, Investigation, VerifiedInvestigation } from "./agents/schemas";
 import { audit, transition } from "./audit";
 import type { ExtractedDoc } from "./azure/docint";
-import { maxSeverity, runChecks, type CheckDoc, type CheckReport, type History } from "./checks";
+import { basisFees, maxSeverity, procedureKey, runChecks, type CheckDoc, type CheckReport, type History } from "./checks";
 import type { Db } from "./db/client";
 import { batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { applyFix, dryRun, FixRejected } from "./fix";
@@ -47,6 +47,7 @@ async function loadDocs(db: Db, batchId: number): Promise<SourceDoc[]> {
   return docs.map((d) => ({
     documentId: d.id,
     lineItemsTotal: d.lineItemsTotal,
+    lineItems: d.lineItems ?? [],
     fields: fields.filter((f) => f.documentId === d.id),
   }));
 }
@@ -56,16 +57,20 @@ async function history(db: Db, batchId: number): Promise<History> {
     .select({ avg: sql<string | null>`avg(${invoices.total})`, count: sql<number>`count(*)::int` })
     .from(invoices)
     .where(sql`${invoices.batchId} is distinct from ${batchId}`);
-  return { avgTotal: r.avg == null ? null : round2(Number(r.avg)), count: r.count };
+  // Fee history: every stored line item of other batches and the seeded history, per procedure
+  const rows = await db.select({ lineItems: invoices.lineItems }).from(invoices).where(sql`${invoices.batchId} is distinct from ${batchId}`);
+  const fees: Record<string, number[]> = {};
+  for (const row of rows) for (const l of row.lineItems ?? []) (fees[procedureKey(l.description)] ??= []).push(l.fee);
+  return { avgTotal: r.avg == null ? null : round2(Number(r.avg)), count: r.count, fees };
 }
 
 const mapDocs = (mapping: Mapping, docs: SourceDoc[]): CheckDoc[] =>
-  docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(mapping, d.fields), lineItemsTotal: d.lineItemsTotal }));
+  docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(mapping, d.fields), lineItemsTotal: d.lineItemsTotal, lineItems: d.lineItems }));
 
 // Upsert on (provider, invoice number): loading twice is safe.
 async function loadInvoices(db: Db, batchId: number, mappingVersion: number, docs: CheckDoc[]) {
-  for (const { mapped } of docs) {
-    const v = mapped.values;
+  for (const doc of docs) {
+    const v = doc.mapped.values;
     const row = {
       providerNo: v.provider_no,
       invoiceNo: v.invoice_no,
@@ -77,6 +82,7 @@ async function loadInvoices(db: Db, batchId: number, mappingVersion: number, doc
       gst: parseMoney(v.gst),
       batchId,
       mappingVersion,
+      lineItems: basisFees(doc),
     };
     await db.insert(invoices).values(row).onConflictDoUpdate({ target: [invoices.providerNo, invoices.invoiceNo], set: row });
   }
@@ -96,7 +102,7 @@ export async function processBatch(deps: Deps, batchId: number) {
           const doc = await withRetry(() => deps.extract(blobPath));
           const [d] = await db
             .insert(documents)
-            .values({ batchId, blobPath, pageWidth: doc.pageWidth, pageHeight: doc.pageHeight, unit: doc.unit, lineItemsTotal: doc.lineItemsTotal })
+            .values({ batchId, blobPath, pageWidth: doc.pageWidth, pageHeight: doc.pageHeight, unit: doc.unit, lineItemsTotal: doc.lineItemsTotal, lineItems: doc.lineItems })
             .returning({ id: documents.id });
           if (doc.fields.length) await db.insert(extractedFields).values(doc.fields.map((f) => ({ ...f, documentId: d.id })));
           count++;

@@ -5,6 +5,7 @@ import { db } from "./db";
 import type { DriftReport, Investigation } from "../src/agents/schemas";
 import type { FixOp } from "../src/fix";
 import { historyInvoices, type InvoiceData } from "../src/demo/invoice-data";
+import { procedureKey } from "../src/checks";
 import { applyMapping, Mapping } from "../src/mapping/mapping";
 import { round2 } from "../src/mapping/money";
 import v1 from "../mappings/v1.json";
@@ -14,10 +15,13 @@ export const V1 = Mapping.parse(v1);
 export const rawFields = (inv: InvoiceData) =>
   inv.fields.map(([label, value]) => ({ label, value, confidence: 0.95 }));
 
+export const lineItems = (inv: InvoiceData) => inv.lines.map((l) => ({ description: l.desc, fee: l.fee }));
+
 export const sourceDoc = (inv: InvoiceData, documentId: number) => ({
   documentId,
   fields: rawFields(inv),
   lineItemsTotal: inv.lineItemsTotal,
+  lineItems: lineItems(inv),
 });
 
 export const checkDocs = (mapping: Mapping, invs: InvoiceData[]) =>
@@ -25,10 +29,17 @@ export const checkDocs = (mapping: Mapping, invs: InvoiceData[]) =>
     documentId: i + 1,
     mapped: applyMapping(mapping, rawFields(inv)),
     lineItemsTotal: inv.lineItemsTotal,
+    lineItems: lineItems(inv),
   }));
 
 const hist = historyInvoices();
-export const HISTORY = { avgTotal: round2(hist.reduce((a, inv) => a + inv.total, 0) / hist.length), count: hist.length };
+const histFees: Record<string, number[]> = {};
+for (const inv of hist) for (const l of inv.lines) (histFees[procedureKey(l.desc)] ??= []).push(l.fee);
+export const HISTORY = {
+  avgTotal: round2(hist.reduce((a, inv) => a + inv.total, 0) / hist.length),
+  count: hist.length,
+  fees: histFees,
+};
 
 // The fix a good proposer should find for the demo batch
 export const GOOD_FIX: FixOp[] = [
@@ -60,6 +71,7 @@ export const extractedDoc = (inv: InvoiceData): ExtractedDoc => ({
   pageHeight: 11.69,
   unit: "inch",
   lineItemsTotal: inv.lineItemsTotal,
+  lineItems: lineItems(inv),
   fields: inv.fields.map(([label, value]) => ({ label, value, confidence: 0.95, page: 1, polygon: [1, 1, 2, 1, 2, 1.2, 1, 1.2] })),
 });
 

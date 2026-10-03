@@ -28,8 +28,10 @@ export type InvoiceData = {
 
 export const money = (n: number) => `$${n.toFixed(2)}`;
 
-export function makeInvoice(i: number, layout: Layout, date: string): InvoiceData {
-  const [procedure, base] = PROCEDURES[i % PROCEDURES.length];
+// fees: optional base fee (excl. GST) per procedure, for a price change
+export function makeInvoice(i: number, layout: Layout, date: string, fees: Record<string, number> = {}): InvoiceData {
+  const [procedure, listBase] = PROCEDURES[i % PROCEDURES.length];
+  const base = fees[procedure] ?? listBase;
   const factor = layout === "v1" ? 1 + GST_RATE : 1; // v1 fees include GST, v2 fees exclude it
   const lines = [
     { desc: "Specialist consultation", fee: round2(CONSULTATION * factor) },
@@ -65,6 +67,8 @@ export const BATCHES = {
   // Live demo (drag and drop): one invoice per procedure, so the fixed average equals history exactly.
   // INV-10300 is the old layout (knee, procedure 0); INV-10301…10304 are the new layout.
   live: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(300 + k, k === 0 ? "v1" : "v2", k === 0 ? day(9, 30) : day(10, 2))),
+  // Real price rise: old layout, one invoice per procedure, shoulder injection $345 + GST (was $320 + GST)
+  price: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(400 + k, "v1", day(11, 2), { "Shoulder injection": 345 })),
 };
 
 // ~2 months of past v1 invoices (12 full cycles), seeded straight into Postgres

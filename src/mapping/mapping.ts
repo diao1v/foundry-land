@@ -19,7 +19,8 @@ export type Mapping = z.infer<typeof Mapping>;
 export const REQUIRED_FIELDS = ["provider_no", "invoice_no", "total"] as const;
 
 export type RawField = { label: string; value: string; confidence: number };
-export type SourceDoc = { documentId: number; fields: RawField[]; lineItemsTotal: number | null };
+export type LineItem = { description: string; fee: number };
+export type SourceDoc = { documentId: number; fields: RawField[]; lineItemsTotal: number | null; lineItems?: LineItem[] };
 export type MappedDoc = {
   values: Record<string, string>;
   confidence: Record<string, number>;

@@ -2,7 +2,7 @@ import { boolean, doublePrecision, integer, jsonb, pgTable, real, serial, text, 
 import type { DriftReport, VerifiedInvestigation } from "../agents/schemas";
 import type { CheckReport, Severity } from "../checks";
 import type { FixOp } from "../fix";
-import type { Mapping } from "../mapping/mapping";
+import type { LineItem, Mapping } from "../mapping/mapping";
 import type { BatchState } from "../state";
 
 export const batches = pgTable("batches", {
@@ -22,6 +22,7 @@ export const documents = pgTable("documents", {
   pageHeight: real("page_height").notNull(),
   unit: text("unit").notNull(), // "inch" for PDFs
   lineItemsTotal: doublePrecision("line_items_total"),
+  lineItems: jsonb("line_items").$type<LineItem[]>(), // fee table rows as printed
 });
 
 export const extractedFields = pgTable("extracted_fields", {
@@ -48,6 +49,7 @@ export const invoices = pgTable(
     gst: doublePrecision("gst"),
     batchId: integer("batch_id").references(() => batches.id, { onDelete: "set null" }), // null = seeded history
     mappingVersion: integer("mapping_version"),
+    lineItems: jsonb("line_items").$type<LineItem[]>(), // on the loaded (GST-inclusive) basis; fee history
   },
   (t) => [unique().on(t.providerNo, t.invoiceNo)],
 );

@@ -238,19 +238,20 @@ export async function documentView(db: Db, id: number, which: "batch" | "propose
   const values = applyMapping(mapping, rows).values;
 
   // "Why this matters": total read through a prefix rule (and not computed by a fix), on an invoice that also
-  // changed shape, in a batch the value check flagged
+  // changed shape, in a batch the fee check flagged
   let note: string | null = null;
   const report = inc?.checkReport;
-  const value = report?.findings.find((f) => f.check === "value");
+  // the fee finding that covers the most invoices (the same procedure is on many of them)
+  const fee = report?.findings.filter((f) => f.check === "fee" && !f.explained && f.fee != null && f.historyFee).sort((a, b) => (b.docs?.length ?? 0) - (a.docs?.length ?? 0))[0];
   const changedShape = report?.findings.some((f) => f.check === "schema" && f.docs?.includes(id));
   const totalRow = fields.find((f) => f.field === "total");
   const totalComputed = mapping.derived.some((d) => d.field === "total");
-  if (shown === "batch" && !totalComputed && value && changedShape && totalRow?.matchedBy === "prefix" && report!.stats.avgTotal != null && report!.stats.historyAvgTotal) {
+  if (shown === "batch" && !totalComputed && fee && changedShape && totalRow?.matchedBy === "prefix") {
     const rule = ruleForLabel(mapping, totalRow.label)!;
     const money = parseMoney(totalRow.value);
     note =
       `Mapping v${version} reads "total" from any label starting with "${rule.ruleLabel}", so ${money == null ? totalRow.value : `$${money.toFixed(2)}`} maps without a warning ` +
-      `even though the label says "${totalRow.label}". Only the value check (${pct(change(report!.stats.avgTotal, report!.stats.historyAvgTotal)!)} vs history) catches it.`;
+      `even though the label says "${totalRow.label}". Only the fee check catches it (${fee.procedure} ${pct((fee.fee! - fee.historyFee!) / fee.historyFee!)} vs history).`;
   }
 
   return {
