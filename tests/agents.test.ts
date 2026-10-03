@@ -30,6 +30,20 @@ it("gives up after the retry", async () => {
   await expect(runAgent(async () => "sorry, I cannot", "fix-proposer", FixProposal, {})).rejects.toThrow(AgentOutputError);
 });
 
+// Seen live: Foundry's search tool failed for a few seconds and the agent replied with an error object
+const toolFailed = '{"error":"Search required but tool call failed. Please retry."}';
+
+it("waits and asks again (same input) when the agent reports its own failure", async () => {
+  const messages: string[] = [];
+  const ask = async (_: string, m: string) => (messages.push(m), messages.length <= 2 ? toolFailed : JSON.stringify(proposal));
+  expect(await runAgent(ask, "fix-proposer", FixProposal, { x: 1 }, { waitMs: 1 })).toEqual(proposal);
+  expect(messages.map((m) => JSON.parse(m))).toEqual([{ x: 1 }, { x: 1 }, { x: 1 }]);
+});
+
+it("gives up when the agent keeps reporting a failure", async () => {
+  await expect(runAgent(async () => toolFailed, "fix-proposer", FixProposal, {}, { waitMs: 1 })).rejects.toThrow(/tool call failed/);
+});
+
 const notices = [
   { id: "provider-letter", title: "provider-letter", content: "First, invoice totals will\nexclude GST. Thanks." },
   { id: "decoy", title: "decoy", content: "The member portal will be down on Sunday." },
