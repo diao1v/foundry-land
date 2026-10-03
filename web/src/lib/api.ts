@@ -1,6 +1,7 @@
 import type { BatchDetail as ServerBatchDetail } from "../../../src/api";
+import type { AgentUrls } from "../../../src/app";
 export type { BatchListResponse, BatchRow, Decision, DocumentView, LoadedRow } from "../../../src/api";
-export type BatchDetail = ServerBatchDetail & { foundryAgentsUrl: string | null };
+export type BatchDetail = ServerBatchDetail & { foundryAgentUrls: AgentUrls };
 export type { Step, StepKey, StepStatus } from "../../../src/steps";
 
 export const REVIEWER = "yiwei"; // no login in the demo

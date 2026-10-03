@@ -107,9 +107,10 @@ it("two approvals at the same moment: one succeeds, the other gets a clear 409, 
   expect(await db.$count(mappingVersions)).toBe(2);
 });
 
-it("batch detail carries the Foundry agents link from config (null when not set)", async () => {
+it("batch detail carries one Foundry link per agent from config (null when not set)", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
-  const withUrl = makeApp(d, { eventSecret: SECRET, pdf: async () => Buffer.from("%PDF"), upload: async () => {}, webDir, foundryAgentsUrl: "https://ai.azure.com/x" });
-  expect((await (await withUrl.request(`/api/batches/${id}`)).json()).foundryAgentsUrl).toBe("https://ai.azure.com/x");
-  expect((await (await app(d).request(`/api/batches/${id}`)).json()).foundryAgentsUrl).toBeNull();
+  const urls = { analyst: "https://ai.azure.com/a", investigator: "https://ai.azure.com/i", fix: "https://ai.azure.com/f" };
+  const withUrls = makeApp(d, { eventSecret: SECRET, pdf: async () => Buffer.from("%PDF"), upload: async () => {}, webDir, foundryAgentUrls: urls });
+  expect((await (await withUrls.request(`/api/batches/${id}`)).json()).foundryAgentUrls).toEqual(urls);
+  expect((await (await app(d).request(`/api/batches/${id}`)).json()).foundryAgentUrls).toEqual({ analyst: null, investigator: null, fix: null });
 });

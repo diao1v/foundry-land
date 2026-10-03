@@ -37,7 +37,11 @@ const app = makeApp(deps, {
   eventSecret: cfg.EVENT_SECRET,
   pdf: (path) => blob.download("invoices", path),
   upload: (path, data, contentType) => blob.upload("invoices", path, data, contentType),
-  foundryAgentsUrl: cfg.FOUNDRY_AGENTS_URL,
+  foundryAgentUrls: {
+    analyst: cfg.FOUNDRY_DRIFT_ANALYST_AGENTS_URL,
+    investigator: cfg.FOUNDRY_INVESTIGATOR_AGENTS_URL,
+    fix: cfg.FOUNDRY_FIX_PROPOSER_AGENTS_URL,
+  },
 });
 serve({ fetch: app.fetch, port: cfg.PORT });
 console.log(`foundry-land running on ${cfg.PUBLIC_URL}`);

@@ -21,7 +21,7 @@ const Panel = ({ title, aside, children }: { title: ReactNode; aside?: ReactNode
     {children}
   </Card>
 );
-// Agent steps say so, and link to the agent in the Foundry portal when FOUNDRY_AGENTS_URL is set
+// Agent steps say so, and link to the agent in the Foundry portal when its FOUNDRY_…_AGENTS_URL is set
 const agentTitle = (text: string) => <>{text} <AgentMark /></>;
 const FoundryLink = ({ url }: { url: string | null }) =>
   url ? (
@@ -88,7 +88,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
   if (tab === "analyst") {
     if (!d.drift) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
-      <Panel title={agentTitle("Drift analyst · reads the check report")} aside={<FoundryLink url={d.foundryAgentsUrl} />}>
+      <Panel title={agentTitle("Drift analyst · reads the check report")} aside={<FoundryLink url={d.foundryAgentUrls.analyst} />}>
         <ul className="space-y-3">
           {d.drift.findings.map((f, i) => (
             <li key={i}>
@@ -111,7 +111,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
     const inv = d.investigation;
     if (!inv) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
-      <Panel title={agentTitle("Investigator · searched the provider notices")} aside={<FoundryLink url={d.foundryAgentsUrl} />}>
+      <Panel title={agentTitle("Investigator · searched the provider notices")} aside={<FoundryLink url={d.foundryAgentUrls.investigator} />}>
         {inv.explanationFound ? (
           <p>{inv.explanation}</p>
         ) : (
@@ -162,7 +162,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
   if (tab === "fix") {
     if (!d.proposals.length) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
-      <Panel title={agentTitle("Fix proposer ⇄ dry-run · at most 3 rounds")} aside={<FoundryLink url={d.foundryAgentsUrl} />}>
+      <Panel title={agentTitle("Fix proposer ⇄ dry-run · at most 3 rounds")} aside={<FoundryLink url={d.foundryAgentUrls.fix} />}>
         <div className="space-y-3">
           {d.proposals.map((p) => (
             <div key={p.round} className="rounded-md border px-4 py-3">

@@ -12,12 +12,13 @@ import { batches, documents } from "./db/schema";
 import { batchNameFromEvent, type EGEvent } from "./events";
 import { approve, processBatch, reject, ReviewError, startBatch, type Deps } from "./orchestrator";
 
+export type AgentUrls = { analyst: string | null; investigator: string | null; fix: string | null };
 export type AppOptions = {
   eventSecret: string;
   pdf(blobPath: string): Promise<Buffer>;
   upload(path: string, data: Buffer, contentType: string): Promise<void>; // into the "invoices" container
   webDir?: string;
-  foundryAgentsUrl?: string; // Foundry portal page for the project's agents (pasted into .env)
+  foundryAgentUrls?: Partial<AgentUrls>; // Foundry portal page of each agent (pasted into .env)
 };
 
 const Approve = z.object({ reviewer: z.string().trim().min(1).max(40) });
@@ -64,7 +65,9 @@ export function makeApp(deps: Deps, opts: AppOptions) {
 
   app.get("/api/batches/:id", async (c) => {
     const r = await batchDetail(db, id(c.req.param("id")));
-    return r ? c.json({ ...r, foundryAgentsUrl: opts.foundryAgentsUrl ?? null }) : c.json({ error: "Batch not found" }, 404);
+    const u = opts.foundryAgentUrls ?? {};
+    const foundryAgentUrls: AgentUrls = { analyst: u.analyst ?? null, investigator: u.investigator ?? null, fix: u.fix ?? null };
+    return r ? c.json({ ...r, foundryAgentUrls }) : c.json({ error: "Batch not found" }, 404);
   });
 
   app.post("/api/batches/:id/approve", async (c) => {
