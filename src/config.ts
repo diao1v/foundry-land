@@ -16,6 +16,7 @@ const Env = z
     MODEL_DEPLOYMENT: z.string(),
     APPLICATIONINSIGHTS_CONNECTION_STRING: z.string().optional(),
     REVIEW_WEBHOOK_URL: z.string().url().optional(),
+    FOUNDRY_AGENTS_URL: z.string().url().optional(), // portal link shown on agent steps
     EVENT_SECRET: z.string().min(16),
   })
   .refine((e) => e.AZURE_STORAGE_CONNECTION_STRING || e.STORAGE_ACCOUNT, {

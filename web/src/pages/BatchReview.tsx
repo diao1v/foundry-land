@@ -43,8 +43,8 @@ export function BatchReview() {
       </div>
       <p className="text-muted-foreground">{d.provider} · {d.documents.length} invoices · mapping v{d.batch.mappingVersion ?? "–"}</p>
 
-      <Tabs value={tab} onValueChange={setPicked} className="mt-4 gap-4">
-        <StepTabs steps={d.steps} eventsCount={d.events.length} />
+      <Tabs value={tab} onValueChange={setPicked} activationMode="manual" className="mt-4 gap-4">
+        <StepTabs steps={d.steps} eventsCount={d.events.length} loadedCount={d.loaded.length} />
         <div className="grid grid-cols-[1fr_330px] items-start gap-4">
           <TabsContent value={tab} className="mt-0">
             <StepContent tab={tab} d={d} />

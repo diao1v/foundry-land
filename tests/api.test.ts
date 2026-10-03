@@ -121,3 +121,37 @@ it("document view after approval: no note, because mapping v2 computes total fro
   expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "506.00" }]);
   expect(r.note).toBeNull();
 });
+
+it("per-invoice issues: named problems after checks, 'not checked' before", async () => {
+  const { id } = await runBatch("demo", BATCHES.demo());
+  const r = (await batchDetail(db, id))!;
+  expect(r.documents.find((x) => x.name === "INV-10202")).toMatchObject({
+    checked: true,
+    issues: ['"provider_no" missing', "new labels: Provider ID, GST"],
+  });
+  expect(r.documents.find((x) => x.name === "INV-10200")).toMatchObject({ checked: true, issues: [] });
+});
+
+it("loaded data: rows for a loaded batch, none while held for review", async () => {
+  const normal = await runBatch("normal", BATCHES.normal());
+  const n = (await batchDetail(db, normal.id))!;
+  expect(n.loaded).toHaveLength(5);
+  expect(n.loaded[0]).toMatchObject({ invoiceNo: "INV-10100", providerNo: "EO-20417", total: 1874.5, gst: null, mappingVersion: 1, pdfTotal: "$1874.50", pdfTotalLabel: "Total (incl. GST)" });
+  const demo = await runBatch("demo", BATCHES.demo());
+  expect((await batchDetail(db, demo.id))!.loaded).toEqual([]);
+});
+
+it("after approval: reloaded rows show PDF total vs loaded total, and the mapping change v1 → v2", async () => {
+  const { id, d } = await runBatch("demo", BATCHES.demo());
+  await approve(d, id, "yiwei");
+  const r = (await batchDetail(db, id))!;
+  expect(r.loaded).toHaveLength(10);
+  expect(r.loaded.find((x) => x.invoiceNo === "INV-10202")).toMatchObject({
+    pdfTotal: "$440.00", pdfTotalLabel: "Total (excl. GST)", gst: 66, total: 506, mappingVersion: 2,
+  });
+  expect(r.decision.result!.mappingChanges).toEqual([
+    { field: "provider_no", before: '"Provider No."', after: '"Provider No.", "Provider ID"' },
+    { field: "total", before: '"Total…"', after: '"Total…" · then total + gst' },
+    { field: "gst", before: "–", after: '"GST"' },
+  ]);
+});

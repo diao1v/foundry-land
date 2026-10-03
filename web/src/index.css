@@ -43,6 +43,8 @@
   --color-ok-soft: #dff1e8;
   --color-warn: #d99a1e;
   --color-warn-soft: #fbf1dc;
+  --color-info: #1f4e8c;
+  --color-info-soft: #e3eefb;
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);

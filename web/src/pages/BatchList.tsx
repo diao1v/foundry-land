@@ -24,12 +24,15 @@ const BAR: Record<Step["status"], string> = {
   done: "bg-navy", failed: "bg-bad", warning: "bg-warn", waiting: "bg-coral", running: "bg-navy/40 animate-pulse", todo: "bg-border", skipped: "bg-border",
 };
 
-function Progress({ steps }: { steps: Step[] }) {
-  const ok = steps.every((s) => s.status === "done" || s.status === "skipped") && steps[0].status === "done";
+// Finished cleanly → all green (skipped steps lighter), so a loaded batch reads "done", not "1 of 5"
+function Progress({ steps, state }: { steps: Step[]; state: string }) {
+  const clean = state === "LOADED";
+  const colour = (s: Step) =>
+    clean ? (s.status === "skipped" ? "bg-ok/35" : "bg-ok") : state === "RELOADED" && s.key === "decision" ? "bg-ok" : BAR[s.status];
   return (
     <div className="flex gap-[3px]" aria-label={steps.map((s) => `${s.label}: ${s.summary}`).join(", ")}>
       {steps.map((s) => (
-        <span key={s.key} className={cn("h-1 w-4 rounded-full", ok && s.status === "done" ? "bg-ok" : BAR[s.status])} />
+        <span key={s.key} className={cn("h-1 w-4 rounded-full", colour(s))} />
       ))}
     </div>
   );
@@ -96,7 +99,7 @@ export function BatchList() {
                             {s.text}
                           </span>
                         </TableCell>
-                        <TableCell className="px-4"><Progress steps={r.steps} /></TableCell>
+                        <TableCell className="px-4"><Progress steps={r.steps} state={r.state} /></TableCell>
                         <TableCell className="px-4">{r.invoices}</TableCell>
                         <TableCell className={cn("px-4 font-mono text-[12.5px]", off && "text-bad")}>
                           {r.changeVsHistory == null ? "–" : pct(r.changeVsHistory)}

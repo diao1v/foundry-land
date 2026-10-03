@@ -37,6 +37,7 @@ const app = makeApp(deps, {
   eventSecret: cfg.EVENT_SECRET,
   pdf: (path) => blob.download("invoices", path),
   upload: (path, data, contentType) => blob.upload("invoices", path, data, contentType),
+  foundryAgentsUrl: cfg.FOUNDRY_AGENTS_URL,
 });
 serve({ fetch: app.fetch, port: cfg.PORT });
 console.log(`foundry-land running on ${cfg.PUBLIC_URL}`);

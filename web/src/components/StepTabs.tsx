@@ -1,4 +1,5 @@
-import { Clock } from "lucide-react";
+import { Bot, Clock, Table2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { StatusMark } from "@/components/StatusMark";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Step } from "@/lib/api";
@@ -7,37 +8,56 @@ import { cn } from "@/lib/utils";
 const TRIGGER =
   "h-auto flex-1 justify-start gap-2.5 rounded-[7px] px-3 py-2 text-left text-foreground whitespace-normal shadow-none " +
   "data-active:bg-navy data-active:text-white data-active:shadow-none data-[state=active]:bg-navy data-[state=active]:text-white";
+const SUB = "block truncate text-[11.5px] text-muted-foreground group-data-active/step:text-navy-muted group-data-[state=active]/step:text-navy-muted";
 
-export function StepTabs({ steps, eventsCount }: { steps: Step[]; eventsCount: number }) {
+// Steps run by a Foundry agent (the rest is code or a person)
+export const AGENT_STEPS = new Set(["analyst", "investigator", "fix"]);
+
+export function AgentMark({ className, short }: { className?: string; short?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-px text-[9.5px] font-bold tracking-wide whitespace-nowrap uppercase",
+        "bg-info-soft text-info group-data-active/step:bg-navy-2 group-data-active/step:text-navy-muted group-data-[state=active]/step:bg-navy-2 group-data-[state=active]/step:text-navy-muted",
+        className,
+      )}
+    >
+      <Bot className="size-2.5" strokeWidth={2.5} /> {short ? "AI" : "AI agent"}
+    </span>
+  );
+}
+
+export function StepTabs({ steps, eventsCount, loadedCount }: { steps: Step[]; eventsCount: number; loadedCount: number }) {
   return (
     <TabsList className="h-auto w-full gap-1 rounded-[10px] border bg-card p-1 group-data-horizontal/tabs:h-auto">
       {steps.map((s, i) => (
         <TabsTrigger key={s.key} value={s.key} className={cn(TRIGGER, "group/step")}>
           <StepMark step={s} n={i + 1} />
           <span className="min-w-0">
-            <span className="block text-[12.5px] leading-tight font-semibold">{s.label}</span>
-            <span
-              className={cn(
-                "block truncate text-[11.5px] text-muted-foreground group-data-active/step:text-navy-muted group-data-[state=active]/step:text-navy-muted",
-                s.status === "waiting" && "font-semibold text-coral-ink",
-              )}
-            >
-              {s.summary}
+            <span className="flex items-center gap-1.5 text-[12.5px] leading-tight font-semibold">
+              {s.label}
+              {AGENT_STEPS.has(s.key) && <AgentMark short />}
             </span>
+            <span className={cn(SUB, s.status === "waiting" && "font-semibold text-coral-ink")}>{s.summary}</span>
           </span>
         </TabsTrigger>
       ))}
       <span className="mx-1 my-1.5 w-px self-stretch bg-border" />
-      <TabsTrigger value="timeline" className={cn(TRIGGER, "group/step max-w-40")}>
-        <Clock className="size-[18px]" />
-        <span>
-          <span className="block text-[12.5px] leading-tight font-semibold">Timeline</span>
-          <span className="block text-[11.5px] text-muted-foreground group-data-active/step:text-navy-muted group-data-[state=active]/step:text-navy-muted">
-            {eventsCount} events
-          </span>
-        </span>
-      </TabsTrigger>
+      <Extra value="data" icon={<Table2 className="size-[18px]" />} label="Data" sub={`${loadedCount} loaded`} />
+      <Extra value="timeline" icon={<Clock className="size-[18px]" />} label="Timeline" sub={`${eventsCount} events`} />
     </TabsList>
+  );
+}
+
+function Extra({ value, icon, label, sub }: { value: string; icon: ReactNode; label: string; sub: string }) {
+  return (
+    <TabsTrigger value={value} className={cn(TRIGGER, "group/step max-w-32")}>
+      {icon}
+      <span>
+        <span className="block text-[12.5px] leading-tight font-semibold">{label}</span>
+        <span className={SUB}>{sub}</span>
+      </span>
+    </TabsTrigger>
   );
 }
 

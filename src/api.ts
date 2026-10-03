@@ -1,12 +1,12 @@
 // JSON responses for the web app. Read-only; built from existing tables.
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { DriftReport, VerifiedInvestigation } from "./agents/schemas";
 import type { CheckReport, Finding, Severity } from "./checks";
 import type { Db } from "./db/client";
 import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { PROVIDER } from "./demo/invoice-data";
 import { applyFix } from "./fix";
-import { applyMapping, Mapping, ruleForLabel } from "./mapping/mapping";
+import { applyMapping, type FieldRule, Mapping, normalizeLabel, ruleForLabel } from "./mapping/mapping";
 import { parseMoney, round2 } from "./mapping/money";
 import { currentMapping } from "./orchestrator";
 import { cleanMarkers, describeOp, pct } from "./present";
@@ -25,7 +25,10 @@ export type Decision = {
   state: "todo" | "waiting" | "approved" | "rejected" | "not_needed" | "escalated";
   by?: string; at?: string; reason?: string;
   proposal?: { round: number; described: string[]; dryRunAvg: number | null };
-  result?: { from: number; to: number; invoices: number; avgTotal: number | null; changeVsHistory: number | null };
+  result?: {
+    from: number; to: number; invoices: number; avgTotal: number | null; changeVsHistory: number | null;
+    mappingChanges: { field: string; before: string; after: string }[];
+  };
 };
 export type BatchDetail = {
   batch: { id: number; name: string; state: BatchState; mappingVersion: number | null; updatedAt: string };
@@ -33,10 +36,16 @@ export type BatchDetail = {
   checkReport: CheckReport | null; codeSeverity: Severity | null; finalSeverity: Severity | null;
   drift: DriftReport | null; investigation: VerifiedInvestigation | null;
   proposals: { round: number; described: string[]; reasoning: string; passed: boolean; rejectedReason: string | null; dryRunFindings: Finding[] }[];
-  documents: { id: number; name: string; flaggedBy: Finding["check"][] }[];
+  documents: { id: number; name: string; flaggedBy: Finding["check"][]; checked: boolean; issues: string[] }[];
+  loaded: LoadedRow[]; // invoices this batch put in the invoices table (empty while it is held)
   events: { id: number; at: string; actor: string; action: string; details: unknown }[];
   steps: Step[];
   decision: Decision;
+};
+export type LoadedRow = {
+  invoiceNo: string; providerNo: string; invoiceDate: string | null; patientName: string | null; memberNo: string | null;
+  gst: number | null; total: number; mappingVersion: number | null;
+  pdfTotal: string | null; pdfTotalLabel: string | null; // what the PDF itself says, for "PDF → loaded"
 };
 export type DocumentView = {
   doc: { id: number; name: string; batchId: number; batchName: string; unit: string; pageWidth: number; pageHeight: number };
@@ -56,6 +65,30 @@ const ESCALATION_WORDS: Record<string, (d: { agent?: string }) => string> = {
   "agent.unavailable": (d) => `Agent unavailable: ${d.agent ?? "unknown"}`,
   "fix.rounds_exhausted": () => "No passing fix in 3 rounds",
 };
+
+// Plain words for the findings that name one invoice
+function issuesFor(report: CheckReport | null, docId: number): string[] {
+  const mine = (report?.findings ?? []).filter((f) => f.docs?.includes(docId));
+  const out = mine.filter((f) => f.check === "schema" && f.field).map((f) => `"${f.field}" missing`);
+  const labels = mine.filter((f) => f.check === "schema" && f.labels).flatMap((f) => f.labels!);
+  if (labels.length) out.push(`new label${labels.length > 1 ? "s" : ""}: ${labels.join(", ")}`);
+  if (mine.some((f) => f.check === "confidence")) out.push("low confidence");
+  if (mine.some((f) => f.check === "totals")) out.push("line items ≠ total − GST");
+  return out;
+}
+
+// Field rules that differ between two mapping versions, in plain form
+function mappingChanges(a: Mapping, b: Mapping) {
+  const fmt = (m: Mapping, field: string) => {
+    const r: FieldRule | undefined = m.fields.find((x) => x.field === field);
+    const labels = r ? r.labels.map((l) => (r.match === "prefix" ? `"${l}…"` : `"${l}"`)).join(", ") : "–";
+    const derived = m.derived.find((d) => d.field === field)?.expression;
+    return derived ? `${labels} · then ${derived}` : labels;
+  };
+  return [...new Set([...a.fields, ...b.fields].map((r) => r.field))]
+    .map((field) => ({ field, before: fmt(a, field), after: fmt(b, field) }))
+    .filter((c) => c.before !== c.after);
+}
 
 // Loaded invoices of each batch: count and average total
 async function loadedStats(db: Db) {
@@ -125,15 +158,33 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
     decision = { state: "waiting", proposal: { round: passed.round, described: passed.operations.map(describeOp), dryRunAvg: passed.dryRun?.stats.avgTotal ?? null } };
   else if (b.state === "RELOADED" && passed) {
     const stats = (await loadedStats(db)).get(id);
+    const versions = await db.select().from(mappingVersions).where(inArray(mappingVersions.version, [passed.baseVersion, b.mappingVersion ?? passed.baseVersion + 1]));
+    const at = (v: number) => Mapping.parse(versions.find((x) => x.version === v)?.mapping ?? { fields: [] });
     decision = {
       state: "approved", by: who("review.approved"), at: event("review.approved")?.at.toISOString(),
-      result: { from: passed.baseVersion, to: b.mappingVersion ?? passed.baseVersion + 1, invoices: stats?.n ?? 0, avgTotal: stats?.avg ?? null, changeVsHistory: change(stats?.avg ?? null, report?.stats.historyAvgTotal) },
+      result: { from: passed.baseVersion, to: b.mappingVersion ?? passed.baseVersion + 1, invoices: stats?.n ?? 0, avgTotal: stats?.avg ?? null, changeVsHistory: change(stats?.avg ?? null, report?.stats.historyAvgTotal),
+        mappingChanges: mappingChanges(at(passed.baseVersion), at(b.mappingVersion ?? passed.baseVersion + 1)) },
     };
   } else if (b.state === "CLOSED")
     decision = { state: "rejected", by: who("review.rejected"), at: event("review.rejected")?.at.toISOString(), reason: (event("review.rejected")?.details as { reason?: string })?.reason };
   else if (b.state === "ESCALATED") {
     const e = events.filter((x) => x.action in ESCALATION_WORDS).at(-1);
     decision = { state: "escalated", reason: e ? ESCALATION_WORDS[e.action](e.details as { agent?: string }) : "Needs a person" };
+  }
+
+  // Loaded rows, with the total exactly as the PDF printed it (read with the batch's mapping)
+  const rows = await db.select().from(invoices).where(eq(invoices.batchId, id)).orderBy(asc(invoices.invoiceNo));
+  const pdfTotals = new Map<string, { label: string; value: string }>();
+  if (rows.length && docs.length) {
+    const [mv] = await db.select().from(mappingVersions).where(eq(mappingVersions.version, b.mappingVersion ?? 1));
+    const bm = Mapping.parse(mv.mapping);
+    const fields = await db.select().from(extractedFields).where(inArray(extractedFields.documentId, docs.map((d) => d.id)));
+    for (const d of docs) {
+      const mine = fields.filter((f) => f.documentId === d.id);
+      const invoiceNo = mine.find((f) => ruleForLabel(bm, f.label)?.field === "invoice_no")?.value.trim();
+      const total = mine.find((f) => ruleForLabel(bm, f.label)?.field === "total");
+      if (invoiceNo && total) pdfTotals.set(invoiceNo, { label: normalizeLabel(total.label), value: total.value.trim() });
+    }
   }
 
   return {
@@ -148,6 +199,13 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
     documents: docs.map((d) => ({
       id: d.id, name: fileName(d.blobPath),
       flaggedBy: [...new Set((report?.findings ?? []).filter((f) => f.docs?.includes(d.id)).map((f) => f.check))],
+      checked: report != null,
+      issues: issuesFor(report, d.id),
+    })),
+    loaded: rows.map((r) => ({
+      invoiceNo: r.invoiceNo, providerNo: r.providerNo, invoiceDate: r.invoiceDate, patientName: r.patientName, memberNo: r.memberNo,
+      gst: r.gst, total: r.total, mappingVersion: r.mappingVersion,
+      pdfTotal: pdfTotals.get(r.invoiceNo)?.value ?? null, pdfTotalLabel: pdfTotals.get(r.invoiceNo)?.label ?? null,
     })),
     events: events.map((e) => ({ id: e.id, at: e.at.toISOString(), actor: e.actor, action: e.action, details: e.details })),
     steps: batchSteps({ state: b.state, codeSeverity: inc?.codeSeverity ?? null, drift: inc?.drift ?? null, investigation, proposals: props, events }),

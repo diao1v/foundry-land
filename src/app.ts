@@ -17,6 +17,7 @@ export type AppOptions = {
   pdf(blobPath: string): Promise<Buffer>;
   upload(path: string, data: Buffer, contentType: string): Promise<void>; // into the "invoices" container
   webDir?: string;
+  foundryAgentsUrl?: string; // Foundry portal page for the project's agents (pasted into .env)
 };
 
 const Approve = z.object({ reviewer: z.string().trim().min(1).max(40) });
@@ -63,7 +64,7 @@ export function makeApp(deps: Deps, opts: AppOptions) {
 
   app.get("/api/batches/:id", async (c) => {
     const r = await batchDetail(db, id(c.req.param("id")));
-    return r ? c.json(r) : c.json({ error: "Batch not found" }, 404);
+    return r ? c.json({ ...r, foundryAgentsUrl: opts.foundryAgentsUrl ?? null }) : c.json({ error: "Batch not found" }, 404);
   });
 
   app.post("/api/batches/:id/approve", async (c) => {

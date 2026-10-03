@@ -12,6 +12,7 @@ export type Finding = {
   message: string;
   docs?: number[];
   labels?: string[];
+  field?: string; // schema: the required field that is missing
 };
 export type CheckDoc = { documentId: number; mapped: MappedDoc; lineItemsTotal: number | null };
 export type History = { avgTotal: number | null; count: number };
@@ -43,6 +44,7 @@ export function runChecks(docs: CheckDoc[], history: History): CheckReport {
         severity: "BREAKING",
         message: `Required field "${field}" is missing or unreadable in ${missing.length} of ${docs.length} invoices`,
         docs: ids(missing),
+        field,
       });
     }
   }
