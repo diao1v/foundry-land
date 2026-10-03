@@ -1,7 +1,7 @@
 // JSON responses for the web app. Read-only; built from existing tables.
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { DriftReport, VerifiedInvestigation } from "./agents/schemas";
-import { type CheckReport, type Finding, procedureKey, type Severity } from "./checks";
+import { type CheckReport, type Finding, procedureKey, sameProcedure, type Severity } from "./checks";
 import type { Db } from "./db/client";
 import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { PROVIDER } from "./demo/invoice-data";
@@ -112,7 +112,7 @@ export async function listBatches(db: Db): Promise<BatchListResponse> {
     db.select({ batchId: auditEvents.batchId, actor: auditEvents.actor, action: auditEvents.action, details: auditEvents.details }).from(auditEvents),
     loadedStats(db),
     currentMapping(db),
-    db.select({ avg: sql<string | null>`avg(${invoices.total})`, n: sql<number>`count(*)::int` }).from(invoices).where(isNull(invoices.batchId)),
+    db.select({ avg: sql<string | null>`avg(${invoices.total})`, n: sql<number>`count(*)::int` }).from(invoices).where(and(isNull(invoices.batchId), eq(invoices.providerNo, PROVIDER.providerNo))),
   ]);
   const docCounts = new Map(
     (await db.select({ batchId: documents.batchId, n: sql<number>`count(*)::int` }).from(documents).groupBy(documents.batchId)).map((r) => [r.batchId, r.n]),
@@ -158,7 +158,7 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
 
   const asIsRequested = (event("review.requested")?.details as { loadAsIs?: boolean })?.loadAsIs === true;
   const asIs = (inc?.investigation?.verifiedPriceChanges ?? []).flatMap((p) => {
-    const f = report?.findings.find((x) => x.check === "fee" && x.procedure && procedureKey(x.procedure) === procedureKey(p.procedure));
+    const f = report?.findings.find((x) => x.check === "fee" && x.procedure && sameProcedure(p.procedure, procedureKey(x.procedure)));
     return f?.fee != null && f.historyFee != null ? [{ procedure: f.procedure!, historyFee: f.historyFee, fee: f.fee, quote: p.quote, docId: p.docId }] : [];
   });
 

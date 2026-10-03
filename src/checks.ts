@@ -42,7 +42,7 @@ export const median = (xs: number[]) => {
 };
 
 // "an extraction" (as a notice writes it) is the procedure "Extraction": match as whole words
-const sameProcedure = (named: string, key: string) => ` ${procedureKey(named)} `.includes(` ${key} `);
+export const sameProcedure = (named: string, key: string) => ` ${procedureKey(named)} `.includes(` ${key} `);
 
 // A line fee on the same basis as the loaded total (after derived fields): fee × total / line-items total.
 // Only for invoices whose totals add up (line items = total − GST); otherwise the factor means nothing.
@@ -50,6 +50,7 @@ export function basisFees(d: CheckDoc): LineItem[] {
   const total = parseMoney(d.mapped.values.total);
   const gst = parseMoney(d.mapped.values.gst) ?? 0;
   const balanced = total != null && d.lineItemsTotal != null && Math.abs(d.lineItemsTotal - (total - gst)) <= 0.01;
+  if (d.lineItemsTotal == null) return []; // a fee is unreadable: the basis is unknown, so no fee is compared
   const k = balanced && d.lineItemsTotal ? total / d.lineItemsTotal : 1;
   return (d.lineItems ?? []).map((l) => ({ description: l.description, fee: round2(l.fee * k) }));
 }
@@ -133,7 +134,8 @@ export function runChecks(docs: CheckDoc[], history: History, explained: Explain
     if (!off.length) continue;
     const fee = round2(median(off.map((x) => x.fee)));
     const change = (fee - historyFee) / historyFee;
-    const isExplained = explained.some((x) => sameProcedure(x.procedure, key) && Math.abs(x.newFee - fee) <= 0.01);
+    // explained only if EVERY changed invoice has the announced fee (an unannounced fee must not hide behind the median)
+    const isExplained = explained.some((x) => sameProcedure(x.procedure, key) && off.every((o) => Math.abs(x.newFee - o.fee) <= 0.01));
     findings.push({
       check: "fee",
       severity: isExplained ? "INFO" : "WARNING",

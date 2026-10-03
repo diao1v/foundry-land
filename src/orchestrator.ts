@@ -10,6 +10,7 @@ import { auditEvents, batches, documents, extractedFields, fixProposals, inciden
 import { applyFix, dryRun, FixRejected } from "./fix";
 import { applyMapping, labelSamples, Mapping, REQUIRED_FIELDS, type SourceDoc } from "./mapping/mapping";
 import { parseMoney, round2 } from "./mapping/money";
+import { PROVIDER } from "./demo/invoice-data";
 import { withRetry } from "./retry";
 import { tracer } from "./telemetry";
 
@@ -56,9 +57,13 @@ async function history(db: Db, batchId: number): Promise<History> {
   const [r] = await db
     .select({ avg: sql<string | null>`avg(${invoices.total})`, count: sql<number>`count(*)::int` })
     .from(invoices)
-    .where(sql`${invoices.batchId} is distinct from ${batchId}`);
+    .where(sql`${invoices.batchId} is distinct from ${batchId} and ${invoices.providerNo} = ${PROVIDER.providerNo}`);
   // Fee history: every stored line item of other batches and the seeded history, per procedure
-  const rows = await db.select({ lineItems: invoices.lineItems }).from(invoices).where(sql`${invoices.batchId} is distinct from ${batchId}`);
+  // ponytail: one provider, all line items read into JS; a SQL percentile per procedure if history grows large
+  const rows = await db
+    .select({ lineItems: invoices.lineItems })
+    .from(invoices)
+    .where(sql`${invoices.batchId} is distinct from ${batchId} and ${invoices.providerNo} = ${PROVIDER.providerNo}`);
   const fees: Record<string, number[]> = {};
   for (const row of rows) for (const l of row.lineItems ?? []) (fees[procedureKey(l.description)] ??= []).push(l.fee);
   return { avgTotal: r.avg == null ? null : round2(Number(r.avg)), count: r.count, fees };

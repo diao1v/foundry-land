@@ -1,7 +1,7 @@
 import { eq, like } from "drizzle-orm";
 import { beforeEach, expect, it } from "vitest";
 import { batchDetail, documentView, listBatches } from "../src/api";
-import { documents } from "../src/db/schema";
+import { documents, invoices } from "../src/db/schema";
 import { BATCHES } from "../src/demo/invoice-data";
 import { seedHistory } from "../src/demo/seed";
 import { approve } from "../src/orchestrator";
@@ -196,4 +196,22 @@ it("loaded rows list their procedures: as printed and as loaded", async () => {
     { description: "General inspection", printed: 65, loaded: 74.75 },
     { description: "X-ray", printed: 45, loaded: 51.75 },
   ]);
+});
+
+it("load-as-is decision lists the change also when the agent names it 'an extraction'", async () => {
+  const { id } = await runBatch("price", BATCHES.price(), {
+    investigate: async () => ({
+      ...INVESTIGATION,
+      priceChanges: [{ procedure: "an extraction", newFee: 276, docId: "x", quote: "the fee for an extraction rises from $253.00 to $276.00 including GST" }],
+    }),
+  });
+  expect((await batchDetail(db, id))!.decision).toMatchObject({ state: "waiting", loadAsIs: [{ procedure: "Extraction", fee: 276, historyFee: 253 }] });
+});
+
+it("history counts only this provider's invoices", async () => {
+  await db.insert(invoices).values({ providerNo: "OTHER-1", invoiceNo: "INV-X1", total: 5000, batchId: null, mappingVersion: 1, lineItems: [{ description: "Extraction", fee: 9999 }] });
+  const { id } = await runBatch("normal", BATCHES.normal());
+  const r = (await batchDetail(db, id))!;
+  expect(r.checkReport!.stats).toMatchObject({ historyAvgTotal: 212.75, historyCount: 60 });
+  expect((await listBatches(db)).summary.history).toEqual({ avgTotal: 212.75, count: 60 });
 });
