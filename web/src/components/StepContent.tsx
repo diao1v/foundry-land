@@ -159,7 +159,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
             </div>
           ))}
         </div>
-        <Rule>Only three operation types are allowed; code dry-runs every proposal in memory before anyone sees it. Nothing is written.</Rule>
+        <Rule>Dry-run = code applies the proposed change to this batch in memory and runs every check again. Nothing is saved. Only a change that passes reaches a person. Only three operation types are allowed.</Rule>
       </Panel>
     );
   }
@@ -221,14 +221,13 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
     );
   }
 
-  if (tab === "data") return <DataTab d={d} />;
-  return <Timeline d={d} />;
+  return null;
 }
 
 const HELD = ["INCIDENT_OPEN", "ANALYSED", "INVESTIGATED", "PROPOSED", "DRY_RUN", "AWAITING_REVIEW", "ESCALATED"];
 
 // What this batch put in the invoices table, next to what each PDF printed
-function DataTab({ d }: { d: BatchDetail }) {
+export function LoadedData({ d }: { d: BatchDetail }) {
   const rows = d.loaded;
   if (!rows.length) {
     const state = d.batch.state;
@@ -291,14 +290,14 @@ function DataTab({ d }: { d: BatchDetail }) {
 const FAILED = new Set(["checks.failed", "dry_run.failed", "agent.unavailable", "extraction.failed", "citation.rejected", "fix.rounds_exhausted", "proposal.rejected", "batch.crashed"]);
 const PASSED = new Set(["checks.passed", "dry_run.passed", "batch.loaded", "batch.reloaded"]);
 
-function Timeline({ d }: { d: BatchDetail }) {
+export function Audit({ d }: { d: BatchDetail }) {
   const [open, setOpen] = useState<number>();
   const who = (actor: string) =>
     actor.startsWith("human:") ? "bg-info-soft text-info" : actor.startsWith("agent:") ? "bg-navy text-white" : "bg-muted text-muted-foreground";
   const tone = (action: string) => (FAILED.has(action) ? "text-bad" : PASSED.has(action) ? "text-ok" : "");
   const dot = (action: string) => (FAILED.has(action) ? "bg-bad" : PASSED.has(action) ? "bg-ok" : "bg-transparent");
   return (
-    <Panel title="Audit timeline · every step, in order">
+    <Panel title="Audit trail · every step, who did it, in order">
       <ol>
         {d.events.map((e) => (
           <li key={e.id} className="border-b border-[#EEF1F5] py-2 last:border-0">

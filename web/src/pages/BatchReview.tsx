@@ -2,14 +2,15 @@ import { useState } from "react";
 import { useParams } from "react-router";
 import { DecisionCard } from "@/components/DecisionCard";
 import { NotFound, Shell } from "@/components/Shell";
-import { StepContent } from "@/components/StepContent";
+import { Audit, LoadedData, StepContent } from "@/components/StepContent";
 import { StepTabs } from "@/components/StepTabs";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type BatchDetail, HttpError } from "@/lib/api";
 import { usePoll } from "@/lib/usePoll";
 import { cn } from "@/lib/utils";
 
+const VIEW = "h-auto flex-none rounded-none px-1 pb-2 text-[13px] font-semibold text-muted-foreground data-active:text-foreground data-[state=active]:text-foreground";
 const STILL_RUNNING = (d: BatchDetail) => !["LOADED", "RELOADED", "CLOSED", "ESCALATED", "AWAITING_REVIEW"].includes(d.batch.state);
 const TAG: Record<string, [string, string]> = {
   AWAITING_REVIEW: ["Waiting for your review", "bg-coral-soft text-coral-ink"],
@@ -28,6 +29,7 @@ export function BatchReview() {
   const { id } = useParams();
   const { data: d, error, refresh } = usePoll<BatchDetail>(`/api/batches/${id}`, STILL_RUNNING);
   const [picked, setPicked] = useState<string>();
+  const [view, setView] = useState("data");
 
   if (error instanceof HttpError && error.status === 404)
     return <Shell crumbs={[{ label: "Batches", to: "/" }]}><NotFound what="Batch" /></Shell>;
@@ -44,13 +46,23 @@ export function BatchReview() {
       <p className="text-muted-foreground">{d.provider} · {d.documents.length} invoices · mapping v{d.batch.mappingVersion ?? "–"}</p>
 
       <Tabs value={tab} onValueChange={setPicked} activationMode="manual" className="mt-4 gap-4">
-        <StepTabs steps={d.steps} eventsCount={d.events.length} loadedCount={d.loaded.length} />
+        <StepTabs steps={d.steps} />
         <div className="grid grid-cols-[1fr_330px] items-start gap-4">
           <TabsContent value={tab} className="mt-0">
             <StepContent tab={tab} d={d} />
           </TabsContent>
           <DecisionCard d={d} onDone={refresh} />
         </div>
+      </Tabs>
+
+      {/* Views of the batch, not pipeline steps */}
+      <Tabs value={view} onValueChange={setView} activationMode="manual" className="mt-8 gap-3">
+        <TabsList variant="line" className="h-auto gap-4 border-b p-0 group-data-horizontal/tabs:h-auto">
+          <TabsTrigger value="data" className={VIEW}>Loaded data · {d.loaded.length}</TabsTrigger>
+          <TabsTrigger value="audit" className={VIEW}>Audit · {d.events.length} events</TabsTrigger>
+        </TabsList>
+        <TabsContent value="data" className="mt-0"><LoadedData d={d} /></TabsContent>
+        <TabsContent value="audit" className="mt-0"><Audit d={d} /></TabsContent>
       </Tabs>
     </Shell>
   );

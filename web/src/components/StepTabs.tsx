@@ -1,5 +1,4 @@
-import { Bot, Clock, Table2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { Bot } from "lucide-react";
 import { StatusMark } from "@/components/StatusMark";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Step } from "@/lib/api";
@@ -13,7 +12,7 @@ const SUB = "block truncate text-[11.5px] text-muted-foreground group-data-activ
 // Steps run by a Foundry agent (the rest is code or a person)
 export const AGENT_STEPS = new Set(["analyst", "investigator", "fix"]);
 
-export function AgentMark({ className, short }: { className?: string; short?: boolean }) {
+export function AgentMark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
@@ -22,12 +21,12 @@ export function AgentMark({ className, short }: { className?: string; short?: bo
         className,
       )}
     >
-      <Bot className="size-2.5" strokeWidth={2.5} /> {short ? "AI" : "AI agent"}
+      <Bot className="size-2.5" strokeWidth={2.5} /> Agent
     </span>
   );
 }
 
-export function StepTabs({ steps, eventsCount, loadedCount }: { steps: Step[]; eventsCount: number; loadedCount: number }) {
+export function StepTabs({ steps }: { steps: Step[] }) {
   return (
     <TabsList className="h-auto w-full gap-1 rounded-[10px] border bg-card p-1 group-data-horizontal/tabs:h-auto">
       {steps.map((s, i) => (
@@ -36,30 +35,16 @@ export function StepTabs({ steps, eventsCount, loadedCount }: { steps: Step[]; e
           <span className="min-w-0">
             <span className="flex items-center gap-1.5 text-[12.5px] leading-tight font-semibold">
               {s.label}
-              {AGENT_STEPS.has(s.key) && <AgentMark short />}
+              {AGENT_STEPS.has(s.key) && <AgentMark />}
             </span>
             <span className={cn(SUB, s.status === "waiting" && "font-semibold text-coral-ink")}>{s.summary}</span>
           </span>
         </TabsTrigger>
       ))}
-      <span className="mx-1 my-1.5 w-px self-stretch bg-border" />
-      <Extra value="data" icon={<Table2 className="size-[18px]" />} label="Data" sub={`${loadedCount} loaded`} />
-      <Extra value="timeline" icon={<Clock className="size-[18px]" />} label="Timeline" sub={`${eventsCount} events`} />
     </TabsList>
   );
 }
 
-function Extra({ value, icon, label, sub }: { value: string; icon: ReactNode; label: string; sub: string }) {
-  return (
-    <TabsTrigger value={value} className={cn(TRIGGER, "group/step max-w-32")}>
-      {icon}
-      <span>
-        <span className="block text-[12.5px] leading-tight font-semibold">{label}</span>
-        <span className={SUB}>{sub}</span>
-      </span>
-    </TabsTrigger>
-  );
-}
 
 // The active tab is navy, so marks switch to their light version inside it
 function StepMark({ step, n }: { step: Step; n: number }) {

@@ -65,11 +65,10 @@ export function BatchList() {
 
       {data && (
         <>
-          <div className="my-5 grid grid-cols-4 gap-3">
+          <div className="my-5 grid grid-cols-3 gap-3">
             <Kpi value={String(data.summary.waitingForReview)} label="Waiting for your review" needsYou={data.summary.waitingForReview > 0} />
             <Kpi value={String(data.summary.invoicesLoaded)} label="Invoices loaded" />
             <Kpi value={`v${data.summary.currentMapping}`} label="Current mapping" />
-            <Kpi value={money(data.summary.history.avgTotal)} label={`History average total (${data.summary.history.count} invoices)`} />
           </div>
 
           <Card className="py-0">
