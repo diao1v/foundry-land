@@ -68,11 +68,13 @@ env)
   FQDN=$(az containerapp show -n $APP -g $RG --query properties.configuration.ingress.fqdn -o tsv)
   az containerapp secret set -n $APP -g $RG -o none --secrets \
     database-url="postgres://fladmin:${PG_PASSWORD:?}@$PG.postgres.database.azure.com:5432/foundry_land?sslmode=require" \
-    event-secret="$EVENT_SECRET" appi="$APPLICATIONINSIGHTS_CONNECTION_STRING" demo-password="${DEMO_PASSWORD:?}"
+    event-secret="$EVENT_SECRET" appi="$APPLICATIONINSIGHTS_CONNECTION_STRING" demo-password="${DEMO_PASSWORD:?}" \
+    review-webhook="${REVIEW_WEBHOOK_URL:?set REVIEW_WEBHOOK_URL (Logic App trigger URL)}"
   # No keys for Blob, Document Intelligence or Search: the managed identity gets tokens.
   az containerapp update -n $APP -g $RG -o none --set-env-vars \
     DATABASE_URL=secretref:database-url EVENT_SECRET=secretref:event-secret \
     APPLICATIONINSIGHTS_CONNECTION_STRING=secretref:appi DEMO_PASSWORD=secretref:demo-password \
+    REVIEW_WEBHOOK_URL=secretref:review-webhook \
     STORAGE_ACCOUNT=$STORAGE DOCINT_ENDPOINT=$DOCINT_ENDPOINT SEARCH_ENDPOINT=$SEARCH_ENDPOINT \
     FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT MODEL_DEPLOYMENT=$MODEL_DEPLOYMENT \
     SEARCH_CONNECTION_NAME=$SEARCH_CONNECTION_NAME PUBLIC_URL=https://$FQDN \
