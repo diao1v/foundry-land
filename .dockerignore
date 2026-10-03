@@ -1,0 +1,10 @@
+node_modules
+web/node_modules
+web/dist
+out
+docs
+tests
+.env
+.env.*
+.git
+.superpowers
