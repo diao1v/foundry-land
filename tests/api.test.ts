@@ -215,3 +215,13 @@ it("history counts only this provider's invoices", async () => {
   expect(r.checkReport!.stats).toMatchObject({ historyAvgTotal: 212.75, historyCount: 60 });
   expect((await listBatches(db)).summary.history).toEqual({ avgTotal: 212.75, count: 60 });
 });
+
+it("loaded rows also come back exactly as stored: real column names, in table order", async () => {
+  const { id } = await runBatch("normal", BATCHES.normal());
+  const row = (await batchDetail(db, id))!.loaded[0].stored;
+  expect(Object.keys(row)).toEqual([
+    "id", "provider_no", "invoice_no", "invoice_date", "service_date", "patient_name", "member_no", "total", "gst", "batch_id", "mapping_version", "line_items",
+  ]);
+  expect(row).toMatchObject({ invoice_no: "INV-10100", provider_no: "ED-30512", total: 126.5, gst: null, batch_id: id, mapping_version: 1 });
+  expect(row.line_items).toEqual([{ description: "General inspection", fee: 74.75 }, { description: "X-ray", fee: 51.75 }]);
+});

@@ -49,6 +49,7 @@ export type LoadedRow = {
   gst: number | null; total: number; mappingVersion: number | null;
   pdfTotal: string | null; pdfTotalLabel: string | null; // what the PDF itself says, for "PDF → loaded"
   lineItems: { description: string; printed: number | null; loaded: number }[]; // procedures: fee on the PDF → fee loaded
+  stored: Record<string, unknown>; // the row exactly as in the invoices table (column names, table order)
 };
 export type DocumentView = {
   doc: { id: number; name: string; batchId: number; batchName: string; unit: string; pageWidth: number; pageHeight: number };
@@ -227,6 +228,11 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
       invoiceNo: r.invoiceNo, providerNo: r.providerNo, invoiceDate: r.invoiceDate, patientName: r.patientName, memberNo: r.memberNo,
       gst: r.gst, total: r.total, mappingVersion: r.mappingVersion,
       pdfTotal: pdfTotals.get(r.invoiceNo)?.value ?? null, pdfTotalLabel: pdfTotals.get(r.invoiceNo)?.label ?? null,
+      stored: {
+        id: r.id, provider_no: r.providerNo, invoice_no: r.invoiceNo, invoice_date: r.invoiceDate, service_date: r.serviceDate,
+        patient_name: r.patientName, member_no: r.memberNo, total: r.total, gst: r.gst, batch_id: r.batchId,
+        mapping_version: r.mappingVersion, line_items: r.lineItems,
+      },
       lineItems: (r.lineItems ?? []).map((l) => ({
         description: l.description,
         printed: printed.get(r.invoiceNo)?.find((p) => procedureKey(p.description) === procedureKey(l.description))?.fee ?? null,

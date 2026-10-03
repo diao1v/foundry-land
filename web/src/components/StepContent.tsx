@@ -254,6 +254,7 @@ const HELD = ["INCIDENT_OPEN", "ANALYSED", "INVESTIGATED", "PROPOSED", "DRY_RUN"
 
 // What this batch put in the invoices table, next to what each PDF printed
 export function LoadedData({ d }: { d: BatchDetail }) {
+  const [view, setView] = useState<"table" | "pdf">("table");
   const rows = d.loaded;
   if (!rows.length) {
     const state = d.batch.state;
@@ -271,7 +272,19 @@ export function LoadedData({ d }: { d: BatchDetail }) {
   const avg = rows.reduce((a, r) => a + r.total, 0) / rows.length;
   const hist = d.checkReport?.stats.historyAvgTotal ?? null;
   return (
-    <Panel title="Loaded data · the invoices table">
+    <Panel
+      title="Loaded data · the invoices table"
+      aside={
+        <div className="inline-flex overflow-hidden rounded-lg border border-input text-[12px] font-semibold">
+          {(["table", "pdf"] as const).map((v) => (
+            <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1", view === v ? "bg-navy text-white" : "bg-white hover:bg-muted")}>
+              {v === "table" ? "Table" : "Compared with PDF"}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {view === "table" ? <StoredRows rows={rows} batchId={d.batch.id} /> : <>
       <p className="mb-3 text-muted-foreground">
         {rows.length} invoices loaded · average total <b className="text-foreground">{money(avg)}</b>
         {hist != null && <> vs {money(hist)} history ({pct((avg - hist) / hist)})</>}
@@ -325,7 +338,65 @@ export function LoadedData({ d }: { d: BatchDetail }) {
           })}
         </tbody>
       </table>
+      </>}
     </Panel>
+  );
+}
+
+// The rows exactly as the invoices table holds them, like a SQL client
+const COLUMN_TYPES: Record<string, string> = {
+  id: "int", provider_no: "text", invoice_no: "text", invoice_date: "text", service_date: "text", patient_name: "text",
+  member_no: "text", total: "float8", gst: "float8", batch_id: "int", mapping_version: "int", line_items: "jsonb",
+};
+function StoredRows({ rows, batchId }: { rows: BatchDetail["loaded"]; batchId: number }) {
+  const cols = Object.keys(rows[0].stored);
+  const cell = (v: unknown, col: string) => {
+    if (v == null) return <span className="text-muted-foreground/70 italic">NULL</span>;
+    if (col === "line_items") return <span title={JSON.stringify(v, null, 2)}>{JSON.stringify((v as { description: string; fee: number }[]).map((l) => ({ [l.description]: l.fee })))}</span>;
+    if (typeof v === "number") return COLUMN_TYPES[col] === "float8" ? v.toFixed(2) : String(v);
+    return String(v);
+  };
+  return (
+    <div className="overflow-hidden rounded-md border">
+      <div className="flex items-center justify-between border-b bg-muted px-3 py-1.5 font-mono text-[11.5px] text-muted-foreground">
+        <span><b className="font-semibold text-foreground">public.invoices</b> WHERE batch_id = {batchId}</span>
+        <span>{rows.length} rows</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse font-mono text-[12px]">
+          <thead>
+            <tr className="bg-canvas">
+              <th className="border-r border-b px-2 py-1 text-right font-medium text-muted-foreground">#</th>
+              {cols.map((c) => (
+                <th key={c} className="border-r border-b px-2 py-1 text-left font-semibold whitespace-nowrap last:border-r-0">
+                  {c}
+                  <span className="ml-1 font-normal text-muted-foreground">{COLUMN_TYPES[c]}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, n) => (
+              <tr key={r.invoiceNo} className="odd:bg-white even:bg-canvas/60 hover:bg-info-soft/60">
+                <td className="border-r border-b px-2 py-1 text-right text-muted-foreground">{n + 1}</td>
+                {cols.map((c) => (
+                  <td
+                    key={c}
+                    className={cn(
+                      "border-r border-b px-2 py-1 whitespace-nowrap last:border-r-0",
+                      typeof r.stored[c] === "number" && "text-right",
+                      c === "line_items" && "max-w-[340px] truncate",
+                    )}
+                  >
+                    {cell(r.stored[c], c)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
