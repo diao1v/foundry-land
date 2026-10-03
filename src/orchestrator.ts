@@ -1,12 +1,12 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { Notice } from "./agents/citations";
-import { verifyCitations } from "./agents/citations";
+import { verifyCitations, verifyPriceChanges } from "./agents/citations";
 import type { DriftReport, FixProposal, Investigation, VerifiedInvestigation } from "./agents/schemas";
 import { audit, transition } from "./audit";
 import type { ExtractedDoc } from "./azure/docint";
 import { basisFees, maxSeverity, procedureKey, runChecks, type CheckDoc, type CheckReport, type History } from "./checks";
 import type { Db } from "./db/client";
-import { batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
+import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { applyFix, dryRun, FixRejected } from "./fix";
 import { applyMapping, labelSamples, Mapping, REQUIRED_FIELDS, type SourceDoc } from "./mapping/mapping";
 import { parseMoney, round2 } from "./mapping/money";
@@ -169,14 +169,19 @@ async function runIncident(
   let investigation: VerifiedInvestigation;
   try {
     const raw = await deps.investigate({ findings: drift.findings, labelSamples: samples });
-    const { verified, rejected } = verifyCitations(raw.citations, await deps.notices());
+    const notices = await deps.notices();
+    const { verified, rejected } = verifyCitations(raw.citations, notices);
+    const prices = verifyPriceChanges(raw.priceChanges ?? [], notices);
     investigation = {
       ...raw,
       explanationFound: raw.explanationFound && verified.length > 0,
       verifiedCitations: verified,
       rejectedCitations: rejected,
+      verifiedPriceChanges: prices.verified,
+      rejectedPriceChanges: prices.rejected,
     };
     for (const c of rejected) await audit(db, { batchId, actor: SYSTEM, action: "citation.rejected", details: c });
+    for (const p of prices.rejected) await audit(db, { batchId, actor: SYSTEM, action: "price_change.rejected", details: p });
   } catch (e) {
     return escalate("investigator", e);
   }
@@ -184,10 +189,21 @@ async function runIncident(
   await transition(db, batchId, "INVESTIGATED", "agent:investigator", "investigation.completed", {
     explanationFound: investigation.explanationFound,
     verifiedCitations: investigation.verifiedCitations.length,
+    verifiedPriceChanges: investigation.verifiedPriceChanges?.length ?? 0,
   });
 
-  // 3. Fix proposer ⇄ dry-run, at most MAX_ROUNDS
+  // 3a. Only announced price changes left? Then there is nothing to fix: a person decides to load as is.
   const hist = await history(db, batchId);
+  const explained = (investigation.verifiedPriceChanges ?? []).map(({ procedure, newFee }) => ({ procedure, newFee }));
+  if (explained.length && runChecks(mapDocs(current.mapping, docs), hist, explained).passed) {
+    await transition(db, batchId, "AWAITING_REVIEW", SYSTEM, "review.requested", { loadAsIs: true, priceChanges: explained });
+    await deps
+      .notifyReview(batchId)
+      .catch((e) => audit(db, { batchId, actor: SYSTEM, action: "notify.failed", details: { error: String(e) } }));
+    return;
+  }
+
+  // 3b. Fix proposer ⇄ dry-run, at most MAX_ROUNDS
   const previousRounds: unknown[] = [];
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     let proposal: FixProposal;
@@ -214,7 +230,7 @@ async function runIncident(
 
     let dry: CheckReport;
     try {
-      dry = dryRun(current.mapping, proposal.operations, docs, hist).report;
+      dry = dryRun(current.mapping, proposal.operations, docs, hist, explained).report;
     } catch (e) {
       if (!(e instanceof FixRejected)) throw e;
       await db.update(fixProposals).set({ rejectedReason: e.message }).where(eq(fixProposals.id, p.id));
@@ -267,6 +283,7 @@ async function approveOnce(deps: Deps, batchId: number, reviewer: string) {
     .orderBy(desc(fixProposals.round))
     .limit(1);
   const current = await currentMapping(db);
+  if (!p) return loadAsIs(deps, b, current, actor);
   if (current.version !== p.baseVersion) {
     throw new ReviewError(`Mapping changed (v${p.baseVersion} → v${current.version}) since the dry-run. Re-run the batch.`);
   }
@@ -284,4 +301,23 @@ async function approveOnce(deps: Deps, batchId: number, reviewer: string) {
 
 export async function reject(deps: Deps, batchId: number, reviewer: string, reason: string) {
   await transition(deps.db, batchId, "CLOSED", `human:${reviewer}`, "review.rejected", { reason });
+}
+
+// Approve a batch whose only issues were announced price changes: load with the current mapping, no new version.
+async function loadAsIs(deps: Deps, b: typeof batches.$inferSelect, current: { version: number; mapping: Mapping }, actor: string) {
+  const { db } = deps;
+  const [requested] = await db
+    .select({ details: auditEvents.details })
+    .from(auditEvents)
+    .where(sql`${auditEvents.batchId} = ${b.id} and ${auditEvents.action} = 'review.requested'`)
+    .orderBy(desc(auditEvents.id))
+    .limit(1);
+  if (!(requested?.details as { loadAsIs?: boolean })?.loadAsIs) throw new ReviewError("No verified fix to approve.");
+  if (current.version !== b.mappingVersion) {
+    throw new ReviewError(`Mapping changed (v${b.mappingVersion} → v${current.version}) since the checks. Re-run the batch.`);
+  }
+  await audit(db, { batchId: b.id, actor, action: "review.approved", details: { loadAsIs: true, mappingVersion: current.version } });
+  const mapped = mapDocs(current.mapping, await loadDocs(db, b.id));
+  await loadInvoices(db, b.id, current.version, mapped);
+  await transition(db, b.id, "RELOADED", actor, "batch.reloaded", { mappingVersion: current.version, invoices: mapped.length, loadAsIs: true });
 }

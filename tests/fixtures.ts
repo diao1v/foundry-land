@@ -63,6 +63,7 @@ export const INVESTIGATION: Investigation = {
   explanation: "The provider's letter says totals exclude GST and Provider No. is renamed Provider ID from 1 October 2026.",
   citations: [{ docId: "Example Orthopaedics Ltd — changes to our invoices", quote: "First, invoice totals will exclude GST." }],
   unexplained: [],
+  priceChanges: [],
 };
 
 // What Document Intelligence would return for a generated invoice

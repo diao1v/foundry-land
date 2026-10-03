@@ -15,9 +15,9 @@ it("renders every label, the Fee table and the fictional note", () => {
   expect(h1).not.toContain("GST:</b>");
 });
 
-it("loads 5 notices with the provider letter", () => {
+it("loads 6 notices with the provider letter", () => {
   const notices = loadLocalNotices();
-  expect(notices).toHaveLength(5);
+  expect(notices).toHaveLength(6);
   const letter = notices.find((n) => n.id === LETTER_ID)!;
   expect(letter.title).toBe("Example Orthopaedics Ltd — changes to our invoices");
   expect(letter.content).toContain("First, invoice totals will exclude GST.");

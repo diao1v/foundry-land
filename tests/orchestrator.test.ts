@@ -3,7 +3,7 @@ import { beforeEach, expect, it } from "vitest";
 import { auditEvents, batches, fixProposals, incidents, invoices, mappingVersions } from "../src/db/schema";
 import { BATCHES } from "../src/demo/invoice-data";
 import { seedHistory } from "../src/demo/seed";
-import { approve, reject, startBatch } from "../src/orchestrator";
+import { approve, ReviewError, reject, startBatch } from "../src/orchestrator";
 import { db, resetDb } from "./db";
 import { DRIFT, GOOD_FIX, INVESTIGATION, runBatch as run } from "./fixtures";
 const stateOf = async (id: number) => (await db.select().from(batches).where(eq(batches.id, id)))[0].state;
@@ -144,3 +144,53 @@ it("escalates when extraction fails", async () => {
   expect(await stateOf(id)).toBe("ESCALATED");
   expect(await actions()).toContain("extraction.failed");
 }, 10_000);
+
+const PRICE_QUOTE = "the fee for a shoulder injection rises from $368.00 to $396.75 including GST";
+const priceInvestigation = (newFee = 396.75) => async () => ({
+  ...INVESTIGATION,
+  priceChanges: [{ procedure: "Shoulder injection", newFee, docId: "x", quote: PRICE_QUOTE }],
+});
+const noFixExpected = async () => {
+  throw new Error("the fix proposer must not run");
+};
+
+it("a price batch with a verified notice goes to review as load-as-is, without the fix step", async () => {
+  const { id } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  expect(await stateOf(id)).toBe("AWAITING_REVIEW");
+  expect(await db.$count(fixProposals)).toBe(0);
+  const last = (await db.select().from(auditEvents)).at(-1)!;
+  expect(last).toMatchObject({ action: "review.requested", details: { loadAsIs: true } });
+});
+
+it("approving load-as-is loads with the current mapping and creates no mapping version", async () => {
+  const { id, d } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  await approve(d, id, "yiwei");
+  expect(await stateOf(id)).toBe("RELOADED");
+  expect((await db.select().from(mappingVersions)).map((v) => v.version)).toEqual([1]);
+  const rows = await db.select().from(invoices).where(eq(invoices.batchId, id));
+  expect(rows).toHaveLength(5);
+  expect(rows.every((r) => r.mappingVersion === 1)).toBe(true);
+});
+
+it("load-as-is is refused when the mapping changed since", async () => {
+  const { id, d } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  const [v1] = await db.select().from(mappingVersions);
+  await db.insert(mappingVersions).values({ version: 2, mapping: v1.mapping, createdBy: "test", reason: "other batch" });
+  await expect(approve(d, id, "yiwei")).rejects.toThrow(ReviewError);
+  await expect(approve(d, id, "yiwei")).rejects.toThrow(/Mapping changed/);
+});
+
+it("a price notice with another fee does not explain the batch, so it goes through the fix loop", async () => {
+  const { id } = await run("price", BATCHES.price(), {
+    investigate: priceInvestigation(390),
+    proposeFix: async () => ({ operations: GOOD_FIX.slice(0, 1), reasoning: "x" }),
+  });
+  expect(await stateOf(id)).toBe("ESCALATED");
+  expect(await db.$count(fixProposals)).toBe(3);
+});
+
+it("the GST batch is not explained by the shoulder price notice", async () => {
+  const { id } = await run("demo", BATCHES.demo(), { investigate: priceInvestigation() });
+  expect(await stateOf(id)).toBe("AWAITING_REVIEW");
+  expect(await db.select().from(fixProposals)).toEqual([expect.objectContaining({ round: 1, passed: true })]);
+});

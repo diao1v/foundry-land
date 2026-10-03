@@ -14,7 +14,7 @@ export type StepInput = {
   events: { actor: string; action: string; details: unknown }[];
 };
 
-const KIND_WORDS = { rename: "rename", new_field: "new field", meaning_change: "meaning change" } as const;
+const KIND_WORDS = { rename: "rename", new_field: "new field", meaning_change: "meaning change", price_change: "price change" } as const;
 const FINAL: BatchState[] = ["LOADED", "RELOADED", "CLOSED", "ESCALATED"];
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
