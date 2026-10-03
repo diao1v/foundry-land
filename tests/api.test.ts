@@ -127,7 +127,7 @@ it("per-invoice issues: named problems after checks, 'not checked' before", asyn
   const r = (await batchDetail(db, id))!;
   expect(r.documents.find((x) => x.name === "INV-10202")).toMatchObject({
     checked: true,
-    issues: ['"provider_no" missing', "new labels: Provider ID, GST"],
+    issues: ['"provider_no" missing', "new labels: Provider ID, GST", "Specialist consultation fee −13.0%", "Fracture review fee −13.0%"],
   });
   expect(r.documents.find((x) => x.name === "INV-10200")).toMatchObject({ checked: true, issues: [] });
 });
@@ -173,4 +173,11 @@ it("price batch: waiting decision is load-as-is with the announced change; after
   const after = (await batchDetail(db, id))!;
   expect(after.decision).toMatchObject({ state: "approved", by: "yiwei", result: { from: 1, to: 1, invoices: 5, mappingChanges: [] } });
   expect(after.decision.loadAsIs).toHaveLength(1);
+});
+
+it("per-invoice issues include fee changes", async () => {
+  const { id } = await runBatch("price", BATCHES.price(), { investigate: priceInvestigate });
+  const docs = (await batchDetail(db, id))!.documents;
+  expect(docs.find((x) => x.name === "INV-10401")!.issues).toEqual(["Shoulder injection fee +7.8%"]);
+  expect(docs.find((x) => x.name === "INV-10400")!.issues).toEqual([]);
 });

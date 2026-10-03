@@ -76,6 +76,7 @@ function issuesFor(report: CheckReport | null, docId: number): string[] {
   if (labels.length) out.push(`new label${labels.length > 1 ? "s" : ""}: ${labels.join(", ")}`);
   if (mine.some((f) => f.check === "confidence")) out.push("low confidence");
   if (mine.some((f) => f.check === "totals")) out.push("line items ≠ total − GST");
+  for (const f of mine.filter((x) => x.check === "fee" && x.fee != null && x.historyFee)) out.push(`${f.procedure} fee ${pct((f.fee! - f.historyFee!) / f.historyFee!)}`);
   return out;
 }
 

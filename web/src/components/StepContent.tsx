@@ -53,7 +53,13 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
             {r.findings.length === 0 && <p>All checks passed.</p>}
             <ul className="space-y-2">
               {r.findings.map((f, i) => (
-                <li key={i} className="flex items-start gap-2"><Sev v={f.severity} /><span>{f.message}</span></li>
+                <li key={i} className="flex items-start gap-2">
+                  <Sev v={f.severity} />
+                  <span>{f.message}</span>
+                  {f.check === "fee" && (f.explained || d.decision.loadAsIs?.some((c) => c.procedure === f.procedure)) && (
+                    <span className="rounded-full bg-ok-soft px-2 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-ok">announced by the clinic</span>
+                  )}
+                </li>
               ))}
             </ul>
             {r.stats.avgTotal != null && r.stats.historyAvgTotal != null && (
@@ -125,6 +131,20 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
             </small>
           </blockquote>
         ))}
+        {(inv.verifiedPriceChanges ?? []).length > 0 && (
+          <>
+            <p className="mt-4 text-xs font-semibold text-muted-foreground">Price changes announced in the notices</p>
+            {inv.verifiedPriceChanges!.map((p, i) => (
+              <blockquote key={i} className="my-3 rounded-md border-l-[3px] border-ok bg-ok-soft/40 px-4 py-2.5 text-[14.5px]">
+                “{p.quote}”
+                <small className="mt-1 block text-[11.5px] text-muted-foreground">
+                  {p.docId} · {p.procedure} → {money(p.newFee)} ·{" "}
+                  <span className="font-semibold text-ok">✓ quote found · names the procedure and the fee</span>
+                </small>
+              </blockquote>
+            ))}
+          </>
+        )}
         {inv.unexplained.length > 0 && (
           <div className="mt-3">
             <p className="text-xs font-semibold text-muted-foreground">Not explained</p>
@@ -173,7 +193,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
       return (
         <Panel title="Your decision · approved">
           <p className="mb-3">
-            <b>{dec.by}</b> approved round {d.proposals.find((p) => p.passed)?.round}{dec.at && <span className="text-muted-foreground"> · {clock(dec.at)}</span>}
+            <b>{dec.by}</b> approved {dec.loadAsIs ? "loading as is" : `round ${d.proposals.find((p) => p.passed)?.round}`}{dec.at && <span className="text-muted-foreground"> · {clock(dec.at)}</span>}
           </p>
           <div className="grid grid-cols-4 gap-3">
             {stat("Mapping", `v${dec.result.from} → v${dec.result.to}`)}
@@ -181,6 +201,12 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
             {stat("Average total", money(dec.result.avgTotal))}
             {stat("vs history", dec.result.changeVsHistory == null ? "–" : pct(dec.result.changeVsHistory))}
           </div>
+          {dec.loadAsIs && (
+            <p className="mt-4 text-muted-foreground">
+              Loaded as is. Mapping v{dec.result.to} unchanged — the only change was a price the clinic announced
+              ({dec.loadAsIs.map((c) => `${c.procedure} ${money(c.historyFee)} → ${money(c.fee)}`).join(", ")}).
+            </p>
+          )}
           {dec.result.mappingChanges.length > 0 && (
             <>
               <h5 className="mt-5 mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">

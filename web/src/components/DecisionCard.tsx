@@ -73,6 +73,28 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
         </>
       )}
 
+      {dec.state === "waiting" && dec.loadAsIs && (
+        <>
+          <p className="mb-1 text-xs font-semibold text-ok">Load as is — price change announced</p>
+          <ul className="mb-3">
+            {dec.loadAsIs.map((c) => (
+              <li key={c.procedure} className="border-b border-[#EEF1F5] py-2 text-[13px] last:border-0">
+                {c.procedure} <span className="font-mono">{money(c.historyFee)} → {money(c.fee)}</span>{" "}
+                <span className="text-muted-foreground">({pct((c.fee - c.historyFee) / c.historyFee)})</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mb-4 text-xs text-muted-foreground">The clinic announced this price. No mapping change is needed.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button className="h-9 bg-coral px-4 font-semibold text-white hover:bg-coral/90" onClick={() => void act("approve")} disabled={!!pending}>
+              {pending === "approve" ? "Loading…" : "Approve and load"}
+            </Button>
+            {!rejecting && reject}
+          </div>
+          {rejecting && reject}
+        </>
+      )}
+
       {dec.state === "todo" && (
         <p className="text-[13px] text-muted-foreground">
           <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-coral" />
@@ -84,7 +106,8 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
 
       {dec.state === "approved" && dec.result && (
         <p className="text-[13px] text-muted-foreground">
-          Approved by <b className="text-foreground">{dec.by}</b>{dec.at && ` at ${clock(dec.at)}`}. Reloaded with mapping v{dec.result.to}; v{dec.result.from} is kept unchanged.
+          Approved by <b className="text-foreground">{dec.by}</b>{dec.at && ` at ${clock(dec.at)}`}.{" "}
+          {dec.loadAsIs ? `Loaded as is with mapping v${dec.result.to}; no mapping change was needed.` : `Reloaded with mapping v${dec.result.to}; v${dec.result.from} is kept unchanged.`}
           Average total {money(dec.result.avgTotal)}{dec.result.changeVsHistory != null && ` (${pct(dec.result.changeVsHistory)} vs history)`}.
         </p>
       )}
