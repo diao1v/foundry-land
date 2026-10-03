@@ -80,3 +80,12 @@ it("escalations: agent unavailable, no explanation, no fix in 3 rounds, extracti
   const noPdf = batchSteps({ ...base, state: "ESCALATED", events: [ev("extraction.failed")] });
   expect(noPdf[0]).toMatchObject({ status: "failed", summary: "Extraction failed" });
 });
+
+it("load as is: the fix step is not needed when only announced price changes are left", () => {
+  const s = batchSteps({
+    ...base, state: "AWAITING_REVIEW", codeSeverity: "WARNING", drift: DRIFT, investigation: verified, proposals: [],
+    events: [ev("checks.failed"), ev("review.requested", "system", { loadAsIs: true })],
+  });
+  expect(s[3]).toMatchObject({ status: "skipped", summary: "Not needed — price change announced" });
+  expect(s[4]).toMatchObject({ status: "waiting", summary: "Waiting for you" });
+});

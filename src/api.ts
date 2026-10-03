@@ -1,7 +1,7 @@
 // JSON responses for the web app. Read-only; built from existing tables.
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { DriftReport, VerifiedInvestigation } from "./agents/schemas";
-import type { CheckReport, Finding, Severity } from "./checks";
+import { type CheckReport, type Finding, procedureKey, type Severity } from "./checks";
 import type { Db } from "./db/client";
 import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { PROVIDER } from "./demo/invoice-data";
@@ -25,6 +25,8 @@ export type Decision = {
   state: "todo" | "waiting" | "approved" | "rejected" | "not_needed" | "escalated";
   by?: string; at?: string; reason?: string;
   proposal?: { round: number; described: string[]; dryRunAvg: number | null };
+  // only announced price changes were left: a person loads the batch as is, with no mapping change
+  loadAsIs?: { procedure: string; historyFee: number; fee: number; quote: string; docId: string }[];
   result?: {
     from: number; to: number; invoices: number; avgTotal: number | null; changeVsHistory: number | null;
     mappingChanges: { field: string; before: string; after: string }[];
@@ -152,8 +154,23 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
   const event = (action: string) => events.filter((e) => e.action === action).at(-1);
   const who = (action: string) => event(action)?.actor.replace(/^human:/, "");
 
+  const asIsRequested = (event("review.requested")?.details as { loadAsIs?: boolean })?.loadAsIs === true;
+  const asIs = (inc?.investigation?.verifiedPriceChanges ?? []).flatMap((p) => {
+    const f = report?.findings.find((x) => x.check === "fee" && x.procedure && procedureKey(x.procedure) === procedureKey(p.procedure));
+    return f?.fee != null && f.historyFee != null ? [{ procedure: f.procedure!, historyFee: f.historyFee, fee: f.fee, quote: p.quote, docId: p.docId }] : [];
+  });
+
   let decision: Decision = { state: "todo" };
   if (b.state === "LOADED") decision = { state: "not_needed" };
+  else if (b.state === "AWAITING_REVIEW" && !passed && asIsRequested) decision = { state: "waiting", loadAsIs: asIs };
+  else if (b.state === "RELOADED" && !passed && asIsRequested) {
+    const stats = (await loadedStats(db)).get(id);
+    const v = b.mappingVersion ?? 1;
+    decision = {
+      state: "approved", by: who("review.approved"), at: event("review.approved")?.at.toISOString(), loadAsIs: asIs,
+      result: { from: v, to: v, invoices: stats?.n ?? 0, avgTotal: stats?.avg ?? null, changeVsHistory: change(stats?.avg ?? null, report?.stats.historyAvgTotal), mappingChanges: [] },
+    };
+  }
   else if (b.state === "AWAITING_REVIEW" && passed)
     decision = { state: "waiting", proposal: { round: passed.round, described: passed.operations.map(describeOp), dryRunAvg: passed.dryRun?.stats.avgTotal ?? null } };
   else if (b.state === "RELOADED" && passed) {

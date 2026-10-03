@@ -73,7 +73,9 @@ export function batchSteps(i: StepInput): Step[] {
       ? { status: "failed", summary: "Agent unavailable" }
       : winner
         ? { status: "done", summary: `Passed round ${winner.round}` }
-        : has("fix.rounds_exhausted")
+        : i.proposals.length === 0 && i.events.some((e) => e.action === "review.requested" && (e.details as { loadAsIs?: boolean })?.loadAsIs)
+          ? { status: "skipped", summary: "Not needed — price change announced" }
+          : has("fix.rounds_exhausted")
           ? { status: "failed", summary: "No fix in 3 rounds" }
           : ["INVESTIGATED", "PROPOSED", "DRY_RUN"].includes(i.state)
             ? { status: "running", summary: `Round ${Math.max(1, i.proposals.length)}…` }

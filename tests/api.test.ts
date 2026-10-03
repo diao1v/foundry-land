@@ -6,7 +6,7 @@ import { BATCHES } from "../src/demo/invoice-data";
 import { seedHistory } from "../src/demo/seed";
 import { approve } from "../src/orchestrator";
 import { db, resetDb } from "./db";
-import { runBatch } from "./fixtures";
+import { INVESTIGATION, runBatch } from "./fixtures";
 
 beforeEach(async () => {
   await resetDb();
@@ -154,4 +154,23 @@ it("after approval: reloaded rows show PDF total vs loaded total, and the mappin
     { field: "total", before: '"Total…"', after: '"Total…" · then total + gst' },
     { field: "gst", before: "–", after: '"GST"' },
   ]);
+});
+
+const priceInvestigate = async () => ({
+  ...INVESTIGATION,
+  priceChanges: [{ procedure: "Shoulder injection", newFee: 396.75, docId: "x", quote: "the fee for a shoulder injection rises from $368.00 to $396.75 including GST" }],
+});
+
+it("price batch: waiting decision is load-as-is with the announced change; after approval no mapping change", async () => {
+  const { id, d } = await runBatch("price", BATCHES.price(), { investigate: priceInvestigate });
+  const before = (await batchDetail(db, id))!;
+  expect(before.decision).toMatchObject({
+    state: "waiting",
+    loadAsIs: [{ procedure: "Shoulder injection", historyFee: 368, fee: 396.75, docId: "price-update-example-orthopaedics" }],
+  });
+  expect(before.decision.proposal).toBeUndefined();
+  await approve(d, id, "yiwei");
+  const after = (await batchDetail(db, id))!;
+  expect(after.decision).toMatchObject({ state: "approved", by: "yiwei", result: { from: 1, to: 1, invoices: 5, mappingChanges: [] } });
+  expect(after.decision.loadAsIs).toHaveLength(1);
 });
