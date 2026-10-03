@@ -19,7 +19,11 @@ const Panel = ({ title, children }: { title: string; children: React.ReactNode }
 const Rule = ({ children }: { children: React.ReactNode }) => (
   <p className="mt-4 border-t pt-3 text-[12.5px] text-muted-foreground"><b className="font-semibold text-foreground">Code rule · </b>{children}</p>
 );
-const NotYet = ({ text }: { text: string }) => <Panel title="Not yet"><p className="text-muted-foreground">{text}</p></Panel>;
+const NotYet = ({ text, running }: { text: string; running?: boolean }) => (
+  <Panel title={running ? "Working…" : "Not yet"}>
+    <p className={cn("text-muted-foreground", running && "animate-pulse")}>{text}</p>
+  </Panel>
+);
 
 export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
   const step = d.steps.find((s) => s.key === tab);
@@ -61,7 +65,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
   }
 
   if (tab === "analyst") {
-    if (!d.drift) return <NotYet text={step?.summary ?? ""} />;
+    if (!d.drift) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
       <Panel title="Drift analyst · reads the check report">
         <ul className="space-y-3">
@@ -84,10 +88,13 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
 
   if (tab === "investigator") {
     const inv = d.investigation;
-    if (!inv) return <NotYet text={step?.summary ?? ""} />;
+    if (!inv) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
       <Panel title="Investigator · searched the provider notices">
         <p>{inv.explanation}</p>
+        {!inv.explanationFound && inv.verifiedCitations.length > 0 && (
+          <p className="mt-3 text-xs font-semibold text-muted-foreground">What the notices say — none of them explains the change</p>
+        )}
         {inv.verifiedCitations.map((c, i) => (
           <blockquote key={i} className="my-3 rounded-md border-l-[3px] border-navy bg-canvas px-4 py-2.5 text-[14.5px]">
             “{c.quote}”
@@ -111,7 +118,7 @@ export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
   }
 
   if (tab === "fix") {
-    if (!d.proposals.length) return <NotYet text={step?.summary ?? ""} />;
+    if (!d.proposals.length) return <NotYet text={step?.summary ?? ""} running={step?.status === "running"} />;
     return (
       <Panel title="Fix proposer ⇄ dry-run · at most 3 rounds">
         <div className="space-y-3">
