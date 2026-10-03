@@ -10,7 +10,7 @@ const result: AnalyzeResult = {
   keyValuePairs: [
     {
       key: { content: "Provider No.:", boundingRegions: [{ pageNumber: 1, polygon: box(1, 1) }] },
-      value: { content: "EO-20417", boundingRegions: [{ pageNumber: 1, polygon: box(2.2, 1) }] },
+      value: { content: "ED-30512", boundingRegions: [{ pageNumber: 1, polygon: box(2.2, 1) }] },
       confidence: 0.93,
     },
     { key: { content: "Member No.", boundingRegions: [{ pageNumber: 1, polygon: box(1, 2) }] }, confidence: 0.5 },
@@ -30,7 +30,7 @@ it("turns a layout result into fields with boxes and a line-item total", () => {
     lineItemsTotal: 1874.5,
     lineItems: [{ description: "Consultation", fee: 207 }, { description: "Knee", fee: 1667.5 }],
     fields: [
-      { label: "Provider No.", value: "EO-20417", confidence: 0.93, page: 1, polygon: box(2.2, 1) },
+      { label: "Provider No.", value: "ED-30512", confidence: 0.93, page: 1, polygon: box(2.2, 1) },
       { label: "Member No.", value: "", confidence: 0.5, page: 1, polygon: box(1, 2) }, // key with no value
     ],
   });
@@ -74,4 +74,12 @@ it("asks Document Intelligence for page 1 only (cost guard: invoices are one pag
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it("strips Document Intelligence selection marks from table cells", () => {
+  const t = { cells: [cell(0, 0, "Description"), cell(0, 1, "Fee"), cell(1, 0, "X-ray :selected:"), cell(1, 1, "$51.75"), cell(2, 0, ":unselected: Cleaning"), cell(2, 1, "$109.25")] };
+  expect(toExtractedDoc({ ...result, tables: [t] }).lineItems).toEqual([
+    { description: "X-ray", fee: 51.75 },
+    { description: "Cleaning", fee: 109.25 },
+  ]);
 });

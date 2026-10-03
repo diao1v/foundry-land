@@ -20,27 +20,28 @@ it("lists batches with a summary and averages vs history", async () => {
   await runBatch("normal", BATCHES.normal());
   await runBatch("demo", BATCHES.demo());
   const r = await listBatches(db);
-  expect(r.summary).toEqual({ waitingForReview: 1, invoicesLoaded: 5, currentMapping: 1, history: { avgTotal: 993.6, count: 60 } });
+  expect(r.summary).toEqual({ waitingForReview: 1, invoicesLoaded: 5, currentMapping: 1, history: { avgTotal: 212.75, count: 60 } });
   const [demo, normal] = r.batches; // newest first
-  expect(demo).toMatchObject({ name: "demo", state: "AWAITING_REVIEW", invoices: 10, avgTotal: 895.95 });
-  expect(demo.changeVsHistory).toBeCloseTo(-0.0983, 3);
+  expect(demo).toMatchObject({ name: "demo", state: "AWAITING_REVIEW", invoices: 10, avgTotal: 201.68 });
+  expect(demo.changeVsHistory).toBeCloseTo(-0.054, 3); // vs 213.19: 60 seeded + the 5 normal invoices
   expect(demo.steps.map((s) => s.status)).toEqual(["failed", "done", "done", "done", "waiting"]);
-  expect(normal).toMatchObject({ name: "normal", state: "LOADED", invoices: 5, avgTotal: 993.6, changeVsHistory: 0 });
+  expect(normal).toMatchObject({ name: "normal", state: "LOADED", invoices: 5, avgTotal: 218.5 });
+  expect(normal.changeVsHistory).toBeCloseTo(0.027, 3); // different case mix, no fee change: the average alone means little
 });
 
 it("shows the reloaded average after approval", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
   await approve(d, id, "yiwei");
   const [row] = (await listBatches(db)).batches;
-  expect(row).toMatchObject({ state: "RELOADED", avgTotal: 993.6, changeVsHistory: 0 });
+  expect(row).toMatchObject({ state: "RELOADED", avgTotal: 224.25 });
 });
 
 it("batch detail: steps, decision, proposals and flagged invoices", async () => {
   const { id } = await runBatch("demo", BATCHES.demo());
   const r = (await batchDetail(db, id))!;
-  expect(r.provider).toBe("Example Orthopaedics Ltd");
+  expect(r.provider).toBe("Example Dental Care Ltd");
   expect(r.steps.map((s) => s.key)).toEqual(["checks", "analyst", "investigator", "fix", "decision"]);
-  expect(r.decision).toMatchObject({ state: "waiting", proposal: { round: 1, dryRunAvg: 993.6 } });
+  expect(r.decision).toMatchObject({ state: "waiting", proposal: { round: 1, dryRunAvg: 224.25 } });
   expect(r.decision.proposal!.described).toHaveLength(3);
   expect(r.proposals[0]).toMatchObject({ round: 1, passed: true, rejectedReason: null });
   expect(r.documents).toHaveLength(10);
@@ -56,7 +57,7 @@ it("batch detail after approval reports who decided and the result", async () =>
   const r = (await batchDetail(db, id))!;
   expect(r.decision).toMatchObject({
     state: "approved", by: "yiwei",
-    result: { from: 1, to: 2, invoices: 10, avgTotal: 993.6, changeVsHistory: 0 },
+    result: { from: 1, to: 2, invoices: 10, avgTotal: 224.25 },
   });
 });
 
@@ -87,7 +88,7 @@ it("document view with the batch mapping: unmapped labels, prefix match, positio
   expect(by("Total (excl. GST)")).toMatchObject({ field: "total", matchedBy: "prefix" });
   expect(r.mappedCount).toBe(r.fields.length - 2);
   expect(r.note).toBe(
-    'Mapping v1 reads "total" from any label starting with "Total", so $440.00 maps without a warning even though the label says "Total (excl. GST)". Only the fee check catches it (Specialist consultation −13.0% vs history).',
+    'Mapping v1 reads "total" from any label starting with "Total", so $110.00 maps without a warning even though the label says "Total (excl. GST)". Only the fee check catches it (General inspection −13.0% vs history).',
   );
 });
 
@@ -102,7 +103,7 @@ it("document view with the proposed mapping: renamed and new fields map, derived
   expect(r.mapping.shown).toBe("proposed");
   expect(r.fields.find((f) => f.label === "Provider ID")!.field).toBe("provider_no");
   expect(r.fields.find((f) => f.label === "GST")!.field).toBe("gst");
-  expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "506.00" }]);
+  expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "126.50" }]);
   expect(r.note).toBeNull();
 });
 
@@ -118,7 +119,7 @@ it("document view after approval: no note, because mapping v2 computes total fro
   await approve(d, id, "yiwei");
   const r = (await documentView(db, await docId("INV-10202.pdf"), "batch"))!;
   expect(r.mapping.version).toBe(2);
-  expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "506.00" }]);
+  expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "126.50" }]);
   expect(r.note).toBeNull();
 });
 
@@ -127,7 +128,7 @@ it("per-invoice issues: named problems after checks, 'not checked' before", asyn
   const r = (await batchDetail(db, id))!;
   expect(r.documents.find((x) => x.name === "INV-10202")).toMatchObject({
     checked: true,
-    issues: ['"provider_no" missing', "new labels: Provider ID, GST", "Specialist consultation fee −13.0%", "Fracture review fee −13.0%"],
+    issues: ['"provider_no" missing', "new labels: Provider ID, GST", "General inspection fee −13.0%", "X-ray fee −13.0%"],
   });
   expect(r.documents.find((x) => x.name === "INV-10200")).toMatchObject({ checked: true, issues: [] });
 });
@@ -136,7 +137,7 @@ it("loaded data: rows for a loaded batch, none while held for review", async () 
   const normal = await runBatch("normal", BATCHES.normal());
   const n = (await batchDetail(db, normal.id))!;
   expect(n.loaded).toHaveLength(5);
-  expect(n.loaded[0]).toMatchObject({ invoiceNo: "INV-10100", providerNo: "EO-20417", total: 1874.5, gst: null, mappingVersion: 1, pdfTotal: "$1874.50", pdfTotalLabel: "Total (incl. GST)" });
+  expect(n.loaded[0]).toMatchObject({ invoiceNo: "INV-10100", providerNo: "ED-30512", total: 126.5, gst: null, mappingVersion: 1, pdfTotal: "$126.50", pdfTotalLabel: "Total (incl. GST)" });
   const demo = await runBatch("demo", BATCHES.demo());
   expect((await batchDetail(db, demo.id))!.loaded).toEqual([]);
 });
@@ -147,7 +148,7 @@ it("after approval: reloaded rows show PDF total vs loaded total, and the mappin
   const r = (await batchDetail(db, id))!;
   expect(r.loaded).toHaveLength(10);
   expect(r.loaded.find((x) => x.invoiceNo === "INV-10202")).toMatchObject({
-    pdfTotal: "$440.00", pdfTotalLabel: "Total (excl. GST)", gst: 66, total: 506, mappingVersion: 2,
+    pdfTotal: "$110.00", pdfTotalLabel: "Total (excl. GST)", gst: 16.5, total: 126.5, mappingVersion: 2,
   });
   expect(r.decision.result!.mappingChanges).toEqual([
     { field: "provider_no", before: '"Provider No."', after: '"Provider No.", "Provider ID"' },
@@ -158,7 +159,7 @@ it("after approval: reloaded rows show PDF total vs loaded total, and the mappin
 
 const priceInvestigate = async () => ({
   ...INVESTIGATION,
-  priceChanges: [{ procedure: "Shoulder injection", newFee: 396.75, docId: "x", quote: "the fee for a shoulder injection rises from $368.00 to $396.75 including GST" }],
+  priceChanges: [{ procedure: "Extraction", newFee: 276, docId: "x", quote: "the fee for an extraction rises from $253.00 to $276.00 including GST" }],
 });
 
 it("price batch: waiting decision is load-as-is with the announced change; after approval no mapping change", async () => {
@@ -166,7 +167,7 @@ it("price batch: waiting decision is load-as-is with the announced change; after
   const before = (await batchDetail(db, id))!;
   expect(before.decision).toMatchObject({
     state: "waiting",
-    loadAsIs: [{ procedure: "Shoulder injection", historyFee: 368, fee: 396.75, docId: "price-update-example-orthopaedics" }],
+    loadAsIs: [{ procedure: "Extraction", historyFee: 253, fee: 276, docId: "price-update-example-dental" }],
   });
   expect(before.decision.proposal).toBeUndefined();
   await approve(d, id, "yiwei");
@@ -178,6 +179,21 @@ it("price batch: waiting decision is load-as-is with the announced change; after
 it("per-invoice issues include fee changes", async () => {
   const { id } = await runBatch("price", BATCHES.price(), { investigate: priceInvestigate });
   const docs = (await batchDetail(db, id))!.documents;
-  expect(docs.find((x) => x.name === "INV-10401")!.issues).toEqual(["Shoulder injection fee +7.8%"]);
+  expect(docs.find((x) => x.name === "INV-10401")!.issues).toEqual(["Extraction fee +9.1%"]);
   expect(docs.find((x) => x.name === "INV-10400")!.issues).toEqual([]);
+});
+
+it("loaded rows list their procedures: as printed and as loaded", async () => {
+  const normal = await runBatch("normal", BATCHES.normal());
+  expect((await batchDetail(db, normal.id))!.loaded[0].lineItems).toEqual([
+    { description: "General inspection", printed: 74.75, loaded: 74.75 },
+    { description: "X-ray", printed: 51.75, loaded: 51.75 },
+  ]);
+  const { id, d } = await runBatch("demo", BATCHES.demo());
+  await approve(d, id, "yiwei");
+  const v2 = (await batchDetail(db, id))!.loaded.find((r) => r.invoiceNo === "INV-10202")!;
+  expect(v2.lineItems).toEqual([
+    { description: "General inspection", printed: 65, loaded: 74.75 },
+    { description: "X-ray", printed: 45, loaded: 51.75 },
+  ]);
 });

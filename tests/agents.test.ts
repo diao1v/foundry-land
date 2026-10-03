@@ -48,19 +48,19 @@ it("keeps quotes that appear in a notice, and fixes the doc id", () => {
   expect(rejected).toHaveLength(2); // made-up quote, and a quote shorter than MIN_QUOTE
 });
 
-const priceNotice = { id: "price-update", title: "fee update", content: "From 1 November 2026, the fee for a shoulder injection rises from $368.00 to $396.75 including GST. All other fees stay the same." };
+const priceNotice = { id: "price-update", title: "fee update", content: "From 1 November 2026, the fee for an extraction rises from $253.00 to $276.00 including GST. All other fees stay the same." };
 
 it("verifies a price change only when the quote is in the notice and names the procedure and the new fee", () => {
-  const quote = "the fee for a shoulder injection rises from $368.00 to $396.75 including GST";
+  const quote = "the fee for an extraction rises from $253.00 to $276.00 including GST";
   const { verified, rejected } = verifyPriceChanges(
     [
-      { procedure: "Shoulder injection", newFee: 396.75, docId: "wrong-id", quote },
-      { procedure: "Shoulder injection", newFee: 390, docId: "price-update", quote }, // fee not in the quote
-      { procedure: "Knee arthroscopy", newFee: 396.75, docId: "price-update", quote }, // procedure not in the quote
-      { procedure: "Shoulder injection", newFee: 396.75, docId: "price-update", quote: "the fee for a shoulder injection rises to $396.75" }, // not word for word
+      { procedure: "Extraction", newFee: 276, docId: "wrong-id", quote },
+      { procedure: "Extraction", newFee: 270, docId: "price-update", quote }, // fee not in the quote
+      { procedure: "Cleaning", newFee: 276, docId: "price-update", quote }, // procedure not in the quote
+      { procedure: "Extraction", newFee: 276, docId: "price-update", quote: "the fee for an extraction rises to $276.00" }, // not word for word
     ],
     [priceNotice, ...notices],
   );
-  expect(verified).toEqual([{ procedure: "Shoulder injection", newFee: 396.75, docId: "price-update", quote }]);
+  expect(verified).toEqual([{ procedure: "Extraction", newFee: 276, docId: "price-update", quote }]);
   expect(rejected).toHaveLength(3);
 });

@@ -2,16 +2,15 @@ import { round2 } from "../mapping/money";
 
 // One fictional provider. v1 = before 1 Oct 2026, v2 = from 1 Oct 2026.
 export type Layout = "v1" | "v2";
-export const PROVIDER = { name: "Example Orthopaedics Ltd", providerNo: "EO-20417" } as const;
+export const PROVIDER = { name: "Example Dental Care Ltd", providerNo: "ED-30512" } as const;
 
 const GST_RATE = 0.15;
-const CONSULTATION = 180;
+// Base fees excl. GST. Every visit has a general inspection plus one procedure.
+const INSPECTION = 65;
 const PROCEDURES: [string, number][] = [
-  ["Knee arthroscopy", 1450],
-  ["Shoulder injection", 320],
-  ["Fracture review", 260],
-  ["Carpal tunnel release", 980],
-  ["Ankle follow-up", 410],
+  ["Cleaning", 95],
+  ["X-ray", 45],
+  ["Extraction", 220],
 ];
 const PATIENTS = ["Alex Sample", "Sam Placeholder", "Jordan Example", "Riley Demo", "Casey Test"];
 
@@ -34,7 +33,7 @@ export function makeInvoice(i: number, layout: Layout, date: string, fees: Recor
   const base = fees[procedure] ?? listBase;
   const factor = layout === "v1" ? 1 + GST_RATE : 1; // v1 fees include GST, v2 fees exclude it
   const lines = [
-    { desc: "Specialist consultation", fee: round2(CONSULTATION * factor) },
+    { desc: "General inspection", fee: round2(INSPECTION * factor) },
     { desc: procedure, fee: round2(base * factor) },
   ];
   const lineItemsTotal = round2(lines[0].fee + lines[1].fee);
@@ -57,19 +56,18 @@ export function makeInvoice(i: number, layout: Layout, date: string, fees: Recor
 const day = (month: number, d: number) => new Date(Date.UTC(2026, month - 1, d)).toISOString().slice(0, 10);
 
 export const BATCHES = {
-  // 5 v1 invoices = one full procedure cycle
+  // 5 v1 invoices
   normal: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(100 + k, "v1", day(9, 15))),
   // 2 late-September v1 + 8 October v2
   demo: () =>
     Array.from({ length: 10 }, (_, k) =>
       k < 2 ? makeInvoice(200 + k, "v1", day(9, 29)) : makeInvoice(200 + k, "v2", day(10, k - 1)),
     ),
-  // Live demo (drag and drop): one invoice per procedure, so the fixed average equals history exactly.
-  // INV-10300 is the old layout (knee, procedure 0); INV-10301…10304 are the new layout.
+  // Live demo (drag and drop): INV-10300 is the old layout; INV-10301…10304 are the new layout.
   live: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(300 + k, k === 0 ? "v1" : "v2", k === 0 ? day(9, 30) : day(10, 2))),
-  // Real price rise: old layout, one invoice per procedure, shoulder injection $345 + GST (was $320 + GST)
-  price: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(400 + k, "v1", day(11, 2), { "Shoulder injection": 345 })),
+  // Real price rise: old layout, extraction $240 + GST (was $220 + GST)
+  price: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(400 + k, "v1", day(11, 2), { Extraction: 240 })),
 };
 
-// ~2 months of past v1 invoices (12 full cycles), seeded straight into Postgres
+// ~2 months of past v1 invoices (20 per procedure), seeded straight into Postgres
 export const historyInvoices = () => Array.from({ length: 60 }, (_, k) => makeInvoice(k, "v1", day(8, 1 + k)));

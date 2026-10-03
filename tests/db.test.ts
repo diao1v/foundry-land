@@ -45,7 +45,7 @@ it("lets only one of two competing transitions win", async () => {
 it("resetDemo removes batches, their invoices and later mappings, and keeps history", async () => {
   await seedHistory(db);
   const [b] = await db.insert(batches).values({ name: "demo-x", state: "RELOADED" }).returning();
-  await db.insert(invoices).values({ providerNo: "EO-20417", invoiceNo: "INV-X", total: 1, batchId: b.id });
+  await db.insert(invoices).values({ providerNo: "ED-30512", invoiceNo: "INV-X", total: 1, batchId: b.id });
   await db.insert(mappingVersions).values({ version: 2, mapping: V1, createdBy: "t", reason: "t" });
   await db.update(mappingVersions).set({ mapping: { ...V1, ignore: [] } }).where(eq(mappingVersions.version, 1));
   await resetDemo(db);
@@ -55,8 +55,9 @@ it("resetDemo removes batches, their invoices and later mappings, and keeps hist
 });
 
 it("seedHistory stores line items, also on history rows seeded before line items existed", async () => {
-  await db.insert(invoices).values({ providerNo: "EO-20417", invoiceNo: "INV-10000", total: 1874.5, batchId: null, mappingVersion: 1 });
+  await db.insert(invoices).values({ providerNo: "ED-30512", invoiceNo: "INV-10000", total: 1874.5, batchId: null, mappingVersion: 1 }); // an old total
   await seedHistory(db);
   const [row] = await db.select().from(invoices).where(eq(invoices.invoiceNo, "INV-10000"));
-  expect(row.lineItems).toEqual([{ description: "Specialist consultation", fee: 207 }, { description: "Knee arthroscopy", fee: 1667.5 }]);
+  expect(row.lineItems).toEqual([{ description: "General inspection", fee: 74.75 }, { description: "Cleaning", fee: 109.25 }]);
+  expect(row.total).toBe(184); // every history field comes from code, not only the line items
 });

@@ -13,6 +13,9 @@ const notices = loadLocalNotices();
 
 await search.createIndex();
 for (const n of notices) await blob.upload("notices", `${n.id}.md`, Buffer.from(n.content), "text/markdown");
-await search.upsert(withoutLetter ? notices.filter((n) => n.id !== LETTER_ID) : notices);
-if (withoutLetter) await search.remove([LETTER_ID]);
+const wanted = withoutLetter ? notices.filter((n) => n.id !== LETTER_ID) : notices;
+await search.upsert(wanted);
+// Keep the index in sync with data/notices: remove anything else (renamed files, the letter when --without-letter)
+const stale = (await search.all()).map((n) => n.id).filter((id) => !wanted.some((n) => n.id === id));
+if (stale.length) await search.remove(stale);
 console.log(`indexed ${(await search.all()).length} notices${withoutLetter ? " (provider letter removed)" : ""}`);

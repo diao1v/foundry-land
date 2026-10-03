@@ -17,13 +17,13 @@ it("applies operations to a copy; the old mapping is unchanged", () => {
 it("the good fix passes the dry-run on a mixed v1 + v2 batch", () => {
   const { report } = dryRun(V1, GOOD_FIX, demoDocs(), HISTORY);
   expect(report).toMatchObject({ passed: true, severity: "OK" });
-  expect(report.stats.avgTotal).toBe(993.6);
+  expect(report.findings.some((f) => f.check === "fee")).toBe(false); // fees are GST-inclusive again
 });
 
 it("a fix without the GST derivation fails the dry-run (totals + fees)", () => {
   const { report } = dryRun(V1, GOOD_FIX.slice(0, 2), demoDocs(), HISTORY);
   expect(report.passed).toBe(false);
-  expect(report.findings.map((f) => f.check).sort()).toEqual(["fee", "fee", "fee", "fee", "fee", "fee", "totals"]);
+  expect(report.findings.map((f) => f.check).sort()).toEqual(["fee", "fee", "fee", "fee", "totals"]);
 });
 
 it.each([
@@ -41,9 +41,8 @@ it("the live batch (5 invoices) is caught by the fee check and fixed by the good
   const docs = BATCHES.live().map((inv, i) => sourceDoc(inv, i + 1));
   const before = dryRun(V1, [], docs, HISTORY).report;
   expect(before.findings.filter((f) => f.check === "fee").map((f) => f.message)).toEqual(
-    expect.arrayContaining([expect.stringMatching(/"Specialist consultation" 180\.00 is -13\.0% vs history 207\.00/)]),
+    expect.arrayContaining([expect.stringMatching(/"General inspection" 65\.00 is -13\.0% vs history 74\.75/)]),
   );
   const after = dryRun(V1, GOOD_FIX, docs, HISTORY).report;
   expect(after).toMatchObject({ passed: true });
-  expect(after.stats.avgTotal).toBe(993.6);
 });

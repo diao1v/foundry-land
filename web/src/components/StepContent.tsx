@@ -279,7 +279,7 @@ export function LoadedData({ d }: { d: BatchDetail }) {
       <table className="w-full text-[13px]">
         <thead>
           <tr className="text-left text-[11.5px] text-muted-foreground">
-            {["Invoice", "Provider no.", "Date", "Patient", "Member no.", "On the PDF", "GST", "Loaded total", "Mapping"].map((h) => (
+            {["Invoice", "Provider no.", "Date", "Patient", "Member no.", "Procedures", "On the PDF", "GST", "Loaded total", "Mapping"].map((h) => (
               <th key={h} className={cn("py-1.5 pr-3 font-semibold", ["On the PDF", "GST", "Loaded total"].includes(h) && "text-right")}>{h}</th>
             ))}
           </tr>
@@ -294,6 +294,22 @@ export function LoadedData({ d }: { d: BatchDetail }) {
                 <td className="py-2 pr-3 whitespace-nowrap">{r.invoiceDate ?? "–"}</td>
                 <td className="py-2 pr-3">{r.patientName ?? "–"}</td>
                 <td className="py-2 pr-3">{r.memberNo ?? "–"}</td>
+                <td className="py-2 pr-3">
+                  {r.lineItems.map((l) => (
+                    <span key={l.description} className="block whitespace-nowrap">
+                      {l.description}{" "}
+                      <span className="font-mono text-[12px]">
+                        {l.printed != null && Math.abs(l.printed - l.loaded) > 0.005 ? (
+                          <>
+                            <span className="text-muted-foreground">{money(l.printed)} →</span> <span className="font-semibold text-ok">{money(l.loaded)}</span>
+                          </>
+                        ) : (
+                          money(l.loaded)
+                        )}
+                      </span>
+                    </span>
+                  ))}
+                </td>
                 <td className="py-2 pr-3 text-right whitespace-nowrap">
                   {r.pdfTotal ?? "–"}
                   {r.pdfTotalLabel && <span className="block text-[11px] text-muted-foreground">{r.pdfTotalLabel}</span>}

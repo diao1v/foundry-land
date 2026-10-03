@@ -57,6 +57,9 @@ export async function analyzeLayout(cfg: Pick<Config, "DOCINT_ENDPOINT" | "DOCIN
   throw new Error("Document Intelligence timed out after 60s");
 }
 
+// DI marks checkbox-like glyphs in text as ":selected:" / ":unselected:"; they are not part of the content
+const clean = (text: string) => text.replace(/:(un)?selected:/g, "").replace(/\s+/g, " ").trim();
+
 // The fee table: a "Fee" column (required) and a "Description" column (optional)
 function lineItemsFrom(tables: Table[]): { items: LineItem[]; total: number | null } {
   for (const t of tables) {
@@ -67,7 +70,7 @@ function lineItemsFrom(tables: Table[]): { items: LineItem[]; total: number | nu
     const rows = [...new Set(t.cells.filter((c) => c.rowIndex > 0).map((c) => c.rowIndex))];
     const parsed = rows.map((row) => {
       const cell = (col?: { columnIndex: number }) => t.cells.find((c) => c.rowIndex === row && c.columnIndex === col?.columnIndex);
-      return { description: cell(descCol)?.content.trim() ?? "", fee: parseMoney(cell(feeCol)?.content) };
+      return { description: clean(cell(descCol)?.content ?? ""), fee: parseMoney(clean(cell(feeCol)?.content ?? "")) };
     });
     const items = parsed.filter((p): p is LineItem => p.fee != null);
     const total = parsed.length && items.length === parsed.length ? round2(items.reduce((a, b) => a + b.fee, 0)) : null;
@@ -78,8 +81,8 @@ function lineItemsFrom(tables: Table[]): { items: LineItem[]; total: number | nu
 
 export function toExtractedDoc(r: AnalyzeResult): ExtractedDoc {
   const page = r.pages[0];
-  // DI sometimes also reads table rows as key-value pairs ("Specialist consultation: $180.00"), or just the start
-  // of a cell ("Specialist"). Those are line items, not fields.
+  // DI sometimes also reads table rows as key-value pairs ("General inspection: $74.75"), or just the start
+  // of a cell ("General"). Those are line items, not fields.
   const cells = (r.tables ?? []).flatMap((t) => t.cells.map((c) => normalizeLabel(c.content)));
   const pairs = (r.keyValuePairs ?? []).filter((kv) => !cells.some((c) => c.startsWith(normalizeLabel(kv.key.content))));
   const fields = pairs.map((kv) => {

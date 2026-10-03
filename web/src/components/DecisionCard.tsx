@@ -107,7 +107,7 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
       {dec.state === "approved" && dec.result && (
         <p className="text-[13px] text-muted-foreground">
           Approved by <b className="text-foreground">{dec.by}</b>{dec.at && ` at ${clock(dec.at)}`}.{" "}
-          {dec.loadAsIs ? `Loaded as is with mapping v${dec.result.to}; no mapping change was needed.` : `Reloaded with mapping v${dec.result.to}; v${dec.result.from} is kept unchanged.`}
+          {dec.loadAsIs ? `Loaded as is with mapping v${dec.result.to}; no mapping change was needed.` : `Reloaded with mapping v${dec.result.to}; v${dec.result.from} is kept unchanged.`}{" "}
           Average total {money(dec.result.avgTotal)}{dec.result.changeVsHistory != null && ` (${pct(dec.result.changeVsHistory)} vs history)`}.
         </p>
       )}

@@ -54,7 +54,7 @@ export function BatchList() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-[22px] font-semibold">Invoice batches</h1>
-          <p className="text-muted-foreground">Example Orthopaedics Ltd · a batch starts when its folder lands in Blob storage</p>
+          <p className="text-muted-foreground">Example Dental Care Ltd · a batch starts when its folder lands in Blob storage</p>
         </div>
         <span className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className={cn("size-[7px] rounded-full", error ? "bg-warn" : "bg-ok")} /> Live · updates every 2 s

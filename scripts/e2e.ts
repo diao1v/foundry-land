@@ -2,7 +2,7 @@
 // normal batch loads → demo batch stops with a verified fix → approve → reloaded, totals back in line.
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
-import { eq, isNull, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { makeDb } from "../src/db/client";
 import { invoices } from "../src/db/schema";
 
@@ -45,10 +45,11 @@ assert.equal(res.status, 200, await res.text());
 await waitFor(`demo-${run}`, ["RELOADED"], 30_000);
 
 const db = makeDb(process.env.DATABASE_URL!);
-const avg = async (where: ReturnType<typeof eq> | ReturnType<typeof isNull>) =>
-  Number((await db.select({ v: sql<string>`avg(${invoices.total})` }).from(invoices).where(where))[0].v);
-const batchAvg = await avg(eq(invoices.batchId, demo.id));
-const historyAvg = await avg(isNull(invoices.batchId));
-assert.ok(Math.abs(batchAvg - historyAvg) / historyAvg < 0.01, `average ${batchAvg} vs history ${historyAvg}`);
-console.log(`E2E PASS — demo batch reloaded; average total ${batchAvg.toFixed(2)} vs history ${historyAvg.toFixed(2)}`);
+const rows = await db.select().from(invoices).where(eq(invoices.batchId, demo.id));
+assert.equal(rows.length, 10, `reloaded ${rows.length} invoices, expected 10`);
+// New-layout invoices (they have a GST line) must be stored GST-inclusive, like the history
+const withGst = rows.filter((r) => r.gst != null);
+assert.ok(withGst.length > 0, "no invoice with a GST line");
+for (const r of withGst) assert.ok(Math.abs(r.total / (r.total - r.gst!) - 1.15) < 0.001, `${r.invoiceNo}: total ${r.total} is not GST-inclusive`);
+console.log(`E2E PASS — demo batch reloaded; ${rows.length} invoices, ${withGst.length} new-layout totals stored GST-inclusive`);
 await db.$client.end();

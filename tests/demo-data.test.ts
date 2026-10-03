@@ -19,6 +19,6 @@ it("loads 6 notices with the provider letter", () => {
   const notices = loadLocalNotices();
   expect(notices).toHaveLength(6);
   const letter = notices.find((n) => n.id === LETTER_ID)!;
-  expect(letter.title).toBe("Example Orthopaedics Ltd — changes to our invoices");
+  expect(letter.title).toBe("Example Dental Care Ltd — changes to our invoices");
   expect(letter.content).toContain("First, invoice totals will exclude GST.");
 });

@@ -6,7 +6,7 @@ import type { Db } from "./db/client";
 import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { PROVIDER } from "./demo/invoice-data";
 import { applyFix } from "./fix";
-import { applyMapping, type FieldRule, Mapping, normalizeLabel, ruleForLabel } from "./mapping/mapping";
+import { applyMapping, type FieldRule, type LineItem, Mapping, normalizeLabel, ruleForLabel } from "./mapping/mapping";
 import { parseMoney, round2 } from "./mapping/money";
 import { currentMapping } from "./orchestrator";
 import { cleanMarkers, describeOp, pct } from "./present";
@@ -48,6 +48,7 @@ export type LoadedRow = {
   invoiceNo: string; providerNo: string; invoiceDate: string | null; patientName: string | null; memberNo: string | null;
   gst: number | null; total: number; mappingVersion: number | null;
   pdfTotal: string | null; pdfTotalLabel: string | null; // what the PDF itself says, for "PDF → loaded"
+  lineItems: { description: string; printed: number | null; loaded: number }[]; // procedures: fee on the PDF → fee loaded
 };
 export type DocumentView = {
   doc: { id: number; name: string; batchId: number; batchName: string; unit: string; pageWidth: number; pageHeight: number };
@@ -193,6 +194,7 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
   // Loaded rows, with the total exactly as the PDF printed it (read with the batch's mapping)
   const rows = await db.select().from(invoices).where(eq(invoices.batchId, id)).orderBy(asc(invoices.invoiceNo));
   const pdfTotals = new Map<string, { label: string; value: string }>();
+  const printed = new Map<string, LineItem[]>(); // invoice no → fee table as printed
   if (rows.length && docs.length) {
     const [mv] = await db.select().from(mappingVersions).where(eq(mappingVersions.version, b.mappingVersion ?? 1));
     const bm = Mapping.parse(mv.mapping);
@@ -202,6 +204,7 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
       const invoiceNo = mine.find((f) => ruleForLabel(bm, f.label)?.field === "invoice_no")?.value.trim();
       const total = mine.find((f) => ruleForLabel(bm, f.label)?.field === "total");
       if (invoiceNo && total) pdfTotals.set(invoiceNo, { label: normalizeLabel(total.label), value: total.value.trim() });
+      if (invoiceNo) printed.set(invoiceNo, d.lineItems ?? []);
     }
   }
 
@@ -224,6 +227,11 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
       invoiceNo: r.invoiceNo, providerNo: r.providerNo, invoiceDate: r.invoiceDate, patientName: r.patientName, memberNo: r.memberNo,
       gst: r.gst, total: r.total, mappingVersion: r.mappingVersion,
       pdfTotal: pdfTotals.get(r.invoiceNo)?.value ?? null, pdfTotalLabel: pdfTotals.get(r.invoiceNo)?.label ?? null,
+      lineItems: (r.lineItems ?? []).map((l) => ({
+        description: l.description,
+        printed: printed.get(r.invoiceNo)?.find((p) => procedureKey(p.description) === procedureKey(l.description))?.fee ?? null,
+        loaded: l.fee,
+      })),
     })),
     events: events.map((e) => ({ id: e.id, at: e.at.toISOString(), actor: e.actor, action: e.action, details: e.details })),
     steps: batchSteps({ state: b.state, codeSeverity: inc?.codeSeverity ?? null, drift: inc?.drift ?? null, investigation, proposals: props, events }),

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import type { Notice } from "../agents/citations";
 
 const DIR = new URL("../../data/notices/", import.meta.url);
-export const LETTER_ID = "provider-letter-example-orthopaedics";
+export const LETTER_ID = "provider-letter-example-dental";
 
 export function loadLocalNotices(): Notice[] {
   return readdirSync(DIR)

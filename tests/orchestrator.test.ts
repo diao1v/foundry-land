@@ -19,7 +19,7 @@ it("loads a normal batch", async () => {
   expect(await stateOf(id)).toBe("LOADED");
   expect(await db.$count(invoices, eq(invoices.batchId, id))).toBe(5);
   const [row] = await db.select().from(invoices).where(eq(invoices.invoiceNo, "INV-10100"));
-  expect(row.lineItems).toEqual([{ description: "Specialist consultation", fee: 207 }, { description: "Knee arthroscopy", fee: 1667.5 }]);
+  expect(row.lineItems).toEqual([{ description: "General inspection", fee: 74.75 }, { description: "X-ray", fee: 51.75 }]);
 });
 
 it("ignores a duplicate event for the same batch", async () => {
@@ -49,8 +49,8 @@ it("approve creates mapping v2 and reloads with GST-inclusive totals", async () 
   const rows = await db.select().from(invoices).where(eq(invoices.batchId, id));
   expect(rows).toHaveLength(10);
   const v2 = rows.find((r) => r.invoiceNo === "INV-10202")!;
-  expect(v2).toMatchObject({ providerNo: "EO-20417", total: 506, gst: 66, mappingVersion: 2 });
-  expect(v2.lineItems).toEqual([{ description: "Specialist consultation", fee: 207 }, { description: "Fracture review", fee: 299 }]); // stored GST-inclusive
+  expect(v2).toMatchObject({ providerNo: "ED-30512", total: 126.5, gst: 16.5, mappingVersion: 2 });
+  expect(v2.lineItems).toEqual([{ description: "General inspection", fee: 74.75 }, { description: "X-ray", fee: 51.75 }]); // stored GST-inclusive
 });
 
 it("refuses a second approval", async () => {
@@ -145,10 +145,10 @@ it("escalates when extraction fails", async () => {
   expect(await actions()).toContain("extraction.failed");
 }, 10_000);
 
-const PRICE_QUOTE = "the fee for a shoulder injection rises from $368.00 to $396.75 including GST";
-const priceInvestigation = (newFee = 396.75) => async () => ({
+const PRICE_QUOTE = "the fee for an extraction rises from $253.00 to $276.00 including GST";
+const priceInvestigation = (newFee = 276) => async () => ({
   ...INVESTIGATION,
-  priceChanges: [{ procedure: "Shoulder injection", newFee, docId: "x", quote: PRICE_QUOTE }],
+  priceChanges: [{ procedure: "Extraction", newFee, docId: "x", quote: PRICE_QUOTE }],
 });
 const noFixExpected = async () => {
   throw new Error("the fix proposer must not run");
@@ -182,14 +182,14 @@ it("load-as-is is refused when the mapping changed since", async () => {
 
 it("a price notice with another fee does not explain the batch, so it goes through the fix loop", async () => {
   const { id } = await run("price", BATCHES.price(), {
-    investigate: priceInvestigation(390),
+    investigate: priceInvestigation(270),
     proposeFix: async () => ({ operations: GOOD_FIX.slice(0, 1), reasoning: "x" }),
   });
   expect(await stateOf(id)).toBe("ESCALATED");
   expect(await db.$count(fixProposals)).toBe(3);
 });
 
-it("the GST batch is not explained by the shoulder price notice", async () => {
+it("the GST batch is not explained by the extraction price notice", async () => {
   const { id } = await run("demo", BATCHES.demo(), { investigate: priceInvestigation() });
   expect(await stateOf(id)).toBe("AWAITING_REVIEW");
   expect(await db.select().from(fixProposals)).toEqual([expect.objectContaining({ round: 1, passed: true })]);

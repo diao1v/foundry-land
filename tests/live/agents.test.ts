@@ -1,7 +1,7 @@
 // Real Foundry calls. Run with `pnpm test:live` (needs .env and az login). Skipped by `pnpm test`.
 import { beforeAll, describe, expect, it } from "vitest";
 import { makeAgents } from "../../src/agents";
-import { verifyCitations } from "../../src/agents/citations";
+import { verifyCitations, verifyPriceChanges } from "../../src/agents/citations";
 import { makeSearch } from "../../src/azure/search";
 import { runChecks } from "../../src/checks";
 import { loadConfig } from "../../src/config";
@@ -15,7 +15,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const demoDocs = () => BATCHES.demo().map((inv, i) => sourceDoc(inv, i + 1));
 const driftInput = (mapping: Mapping, docs: SourceDoc[]) => ({
   checkReport: runChecks(
-    docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(mapping, d.fields), lineItemsTotal: d.lineItemsTotal })),
+    docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(mapping, d.fields), lineItemsTotal: d.lineItemsTotal, lineItems: d.lineItems })),
     HISTORY,
   ),
   labelSamples: labelSamples(docs),
@@ -72,6 +72,23 @@ describe.skipIf(!process.env.LIVE)("live agents", () => {
     } finally {
       await search.upsert(loadLocalNotices());
     }
+  }, 120_000);
+
+  it("investigator: finds and verifies the extraction price notice for a price-rise batch", async () => {
+    const out = await agents.investigate({
+      findings: [{ kind: "price_change", field: null, labels: [], evidence: 'Fee for "Extraction" 276.00 is 9.1% vs history 253.00 (20 invoices)' }],
+      labelSamples: labelSamples(BATCHES.price().map(sourceDoc)),
+    });
+    const { verified } = verifyPriceChanges(out.priceChanges, loadLocalNotices());
+    expect(verified.some((p) => / extraction /.test(` ${p.procedure.toLowerCase()} `) && p.newFee === 276)).toBe(true);
+  }, 120_000);
+
+  it("investigator: the price notice does not explain the GST batch", async () => {
+    const docs = demoDocs();
+    const out = await agents.investigate({ findings: DRIFT.findings, labelSamples: labelSamples(docs) });
+    const explained = verifyPriceChanges(out.priceChanges, loadLocalNotices()).verified.map(({ procedure, newFee }) => ({ procedure, newFee }));
+    const mapped = docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(V1, d.fields), lineItemsTotal: d.lineItemsTotal, lineItems: d.lineItems }));
+    expect(runChecks(mapped, HISTORY, explained).passed).toBe(false);
   }, 120_000);
 
   it("fix-proposer: reaches a fix that passes the dry-run within 3 rounds", async () => {

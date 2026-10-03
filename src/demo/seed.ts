@@ -27,8 +27,11 @@ export async function seedHistory(db: Db) {
         lineItems: inv.lines.map((l) => ({ description: l.desc, fee: l.fee })), // v1 fees include GST
       })),
     )
-    // fills line items on history rows seeded before they existed
-    .onConflictDoUpdate({ target: [invoices.providerNo, invoices.invoiceNo], set: { lineItems: sql`excluded.line_items` } });
+    .onConflictDoUpdate({
+      target: [invoices.providerNo, invoices.invoiceNo],
+      // history is defined by code: refresh every field (line items, totals, dates) on rows seeded earlier
+      set: { lineItems: sql`excluded.line_items`, total: sql`excluded.total`, invoiceDate: sql`excluded.invoice_date`, serviceDate: sql`excluded.service_date` },
+    });
 }
 
 // Back to the start of the demo: no batches, mapping v1 only, seeded history kept.

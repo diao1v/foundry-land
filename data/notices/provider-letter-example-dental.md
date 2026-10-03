@@ -1,4 +1,4 @@
-# Example Orthopaedics Ltd — changes to our invoices
+# Example Dental Care Ltd — changes to our invoices
 
 Date: 15 September 2026
 To: Accounts teams at our insurer partners

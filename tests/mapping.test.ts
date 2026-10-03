@@ -21,14 +21,14 @@ it("normalises labels from Document Intelligence", () => {
 });
 
 it("maps exact labels and the Total prefix", () => {
-  const m = applyMapping(V1, [f("Provider No.", "EO-20417"), f("Invoice No.:", "INV-1"), f("Total (excl. GST)", "$440.00", 0.8)]);
-  expect(m.values).toMatchObject({ provider_no: "EO-20417", invoice_no: "INV-1", total: "$440.00" });
+  const m = applyMapping(V1, [f("Provider No.", "ED-30512"), f("Invoice No.:", "INV-1"), f("Total (excl. GST)", "$440.00", 0.8)]);
+  expect(m.values).toMatchObject({ provider_no: "ED-30512", invoice_no: "INV-1", total: "$440.00" });
   expect(m.confidence.total).toBe(0.8);
   expect(m.unmappedLabels).toEqual([]);
 });
 
 it("reports labels no rule matches", () => {
-  const m = applyMapping(V1, [f("Provider ID", "EO-20417"), f("GST", "$66.00")]);
+  const m = applyMapping(V1, [f("Provider ID", "ED-30512"), f("GST", "$66.00")]);
   expect(m.values.provider_no).toBeUndefined();
   expect(m.unmappedLabels).toEqual(["Provider ID", "GST"]);
 });
