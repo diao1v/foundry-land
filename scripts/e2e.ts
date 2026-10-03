@@ -7,13 +7,17 @@ import { makeDb } from "../src/db/client";
 import { invoices } from "../src/db/schema";
 
 const BASE = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT ?? 3000}`;
+// The deployed app asks for the shared password (HTTP Basic Auth, user "demo")
+const AUTH: Record<string, string> = process.env.DEMO_PASSWORD
+  ? { Authorization: `Basic ${Buffer.from(`demo:${process.env.DEMO_PASSWORD}`).toString("base64")}` }
+  : {};
 const sh = (cmd: string) => execSync(cmd, { stdio: "inherit" });
 
 async function waitFor(name: string, want: string[], timeoutMs = 300_000) {
   const end = Date.now() + timeoutMs;
   let last = "none";
   while (Date.now() < end) {
-    const r = await fetch(`${BASE}/api/batches/by-name/${name}`);
+    const r = await fetch(`${BASE}/api/batches/by-name/${name}`, { headers: AUTH });
     if (r.ok) {
       const b = (await r.json()) as { id: number; state: string };
       last = b.state;
@@ -38,7 +42,7 @@ assert.equal(demo.state, "AWAITING_REVIEW", `demo batch: see ${BASE.replace(":30
 
 const res = await fetch(`${BASE}/api/batches/${demo.id}/approve`, {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", ...AUTH },
   body: JSON.stringify({ reviewer: "e2e" }),
 });
 assert.equal(res.status, 200, await res.text());

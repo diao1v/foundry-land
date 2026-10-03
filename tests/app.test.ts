@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeApp } from "../src/app";
 import { batches, mappingVersions } from "../src/db/schema";
 import { BATCHES } from "../src/demo/invoice-data";
@@ -113,4 +113,33 @@ it("batch detail carries one Foundry link per agent from config (null when not s
   const withUrls = makeApp(d, { eventSecret: SECRET, pdf: async () => Buffer.from("%PDF"), upload: async () => {}, webDir, foundryAgentUrls: urls });
   expect((await (await withUrls.request(`/api/batches/${id}`)).json()).foundryAgentUrls).toEqual(urls);
   expect((await (await app(d).request(`/api/batches/${id}`)).json()).foundryAgentUrls).toEqual({ analyst: null, investigator: null, fix: null });
+});
+
+describe("shared password (DEMO_PASSWORD)", () => {
+  const locked = () => makeApp(fakeDeps({}), { eventSecret: SECRET, pdf: async () => Buffer.from("%PDF"), upload: async () => {}, webDir, demoPassword: "s3cret-demo" });
+  const basic = (user: string, pass: string) => ({ headers: { Authorization: `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}` } });
+
+  it("asks for the password on pages and the API", async () => {
+    for (const path of ["/", "/batches/1", "/api/batches"]) {
+      const res = await locked().request(path);
+      expect(res.status).toBe(401);
+      expect(res.headers.get("www-authenticate")).toMatch(/^Basic/);
+    }
+    expect((await locked().request("/api/batches", basic("demo", "wrong"))).status).toBe(401);
+    expect((await locked().request("/api/batches", basic("demo", "s3cret-demo"))).status).toBe(200);
+    expect((await locked().request("/", basic("demo", "s3cret-demo"))).status).toBe(200);
+  });
+
+  it("leaves the Event Grid webhook to its own key", async () => {
+    const res = await locked().request(`/events/blob?key=${SECRET}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "aeg-event-type": "SubscriptionValidation" },
+      body: JSON.stringify([{ id: "1", subject: "", eventType: "Microsoft.EventGrid.SubscriptionValidationEvent", data: { validationCode: "abc" } }]),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("is off when no password is set", async () => {
+    expect((await app().request("/api/batches")).status).toBe(200);
+  });
 });

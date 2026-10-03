@@ -37,6 +37,7 @@ const app = makeApp(deps, {
   eventSecret: cfg.EVENT_SECRET,
   pdf: (path) => blob.download("invoices", path),
   upload: (path, data, contentType) => blob.upload("invoices", path, data, contentType),
+  demoPassword: cfg.DEMO_PASSWORD,
   foundryAgentUrls: {
     analyst: cfg.FOUNDRY_DRIFT_ANALYST_AGENTS_URL,
     investigator: cfg.FOUNDRY_INVESTIGATOR_AGENTS_URL,

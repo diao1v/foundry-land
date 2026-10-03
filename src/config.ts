@@ -16,6 +16,7 @@ const Env = z
     MODEL_DEPLOYMENT: z.string(),
     APPLICATIONINSIGHTS_CONNECTION_STRING: z.string().optional(),
     REVIEW_WEBHOOK_URL: z.string().url().optional(),
+    DEMO_PASSWORD: z.string().min(8).optional(), // shared password for the deployed app (HTTP Basic Auth, user "demo")
     // Foundry portal page of each agent, linked from its step
     FOUNDRY_DRIFT_ANALYST_AGENTS_URL: z.string().url().optional(),
     FOUNDRY_INVESTIGATOR_AGENTS_URL: z.string().url().optional(),

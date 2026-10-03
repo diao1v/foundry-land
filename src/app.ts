@@ -4,7 +4,9 @@ import { basename, join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { eq } from "drizzle-orm";
 import { type Context, Hono } from "hono";
+import { basicAuth } from "hono/basic-auth";
 import { bodyLimit } from "hono/body-limit";
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { batchDetail, documentView, listBatches } from "./api";
 import { audit, IllegalTransition } from "./audit";
@@ -19,6 +21,7 @@ export type AppOptions = {
   upload(path: string, data: Buffer, contentType: string): Promise<void>; // into the "invoices" container
   webDir?: string;
   foundryAgentUrls?: Partial<AgentUrls>; // Foundry portal page of each agent (pasted into .env)
+  demoPassword?: string; // when set: HTTP Basic Auth (user "demo") on everything except the Event Grid webhook
 };
 
 const Approve = z.object({ reviewer: z.string().trim().min(1).max(40) });
@@ -29,6 +32,12 @@ export function makeApp(deps: Deps, opts: AppOptions) {
   const { db } = deps;
   const webDir = opts.webDir ?? "web/dist";
   const app = new Hono();
+
+  // Shared password for the deployed demo. /events/* is called by Event Grid, which uses its own key.
+  if (opts.demoPassword) {
+    const guard = basicAuth({ username: "demo", password: opts.demoPassword, realm: "foundry-land" });
+    app.use("*", (c, next) => (c.req.path.startsWith("/events/") ? next() : guard(c, next)));
+  }
 
   // Start a batch once (duplicate names are ignored) and process it in the background.
   const kickOff = async (name: string) => {
@@ -138,6 +147,7 @@ export function makeApp(deps: Deps, opts: AppOptions) {
   });
 
   app.onError((err, c) => {
+    if (err instanceof HTTPException) return err.getResponse(); // e.g. 401 from the password guard
     if (err instanceof ReviewError || err instanceof IllegalTransition) return c.json({ error: err.message }, 409);
     // Backstop: a second mapping version with the same number (primary key) means someone approved first
     const pg = err as { code?: string; cause?: { code?: string } };
