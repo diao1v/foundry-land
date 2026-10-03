@@ -46,3 +46,11 @@ it("the live batch (5 invoices) is caught by the fee check and fixed by the good
   const after = dryRun(V1, GOOD_FIX, docs, HISTORY).report;
   expect(after).toMatchObject({ passed: true });
 });
+
+it("after approval (mapping v2), a new batch in the new layout loads with no incident", () => {
+  const v2 = applyFix(V1, GOOD_FIX);
+  const docs = BATCHES.after().map((inv, i) => sourceDoc(inv, i + 1));
+  expect(BATCHES.after().every((inv) => inv.layout === "v2")).toBe(true);
+  const r = dryRun(v2, [], docs, HISTORY).report;
+  expect(r).toMatchObject({ passed: true, severity: "OK", findings: [] });
+});
