@@ -179,13 +179,15 @@ export async function documentView(db: Db, id: number, which: "batch" | "propose
   });
   const values = applyMapping(mapping, rows).values;
 
-  // "Why this matters": total read through a prefix rule, on an invoice that also changed shape, in a batch the value check flagged
+  // "Why this matters": total read through a prefix rule (and not computed by a fix), on an invoice that also
+  // changed shape, in a batch the value check flagged
   let note: string | null = null;
   const report = inc?.checkReport;
   const value = report?.findings.find((f) => f.check === "value");
   const changedShape = report?.findings.some((f) => f.check === "schema" && f.docs?.includes(id));
   const totalRow = fields.find((f) => f.field === "total");
-  if (shown === "batch" && value && changedShape && totalRow?.matchedBy === "prefix" && report!.stats.avgTotal != null && report!.stats.historyAvgTotal) {
+  const totalComputed = mapping.derived.some((d) => d.field === "total");
+  if (shown === "batch" && !totalComputed && value && changedShape && totalRow?.matchedBy === "prefix" && report!.stats.avgTotal != null && report!.stats.historyAvgTotal) {
     const rule = ruleForLabel(mapping, totalRow.label)!;
     const money = parseMoney(totalRow.value);
     note =

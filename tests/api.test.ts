@@ -112,3 +112,12 @@ it("falls back to the batch mapping when no proposal passed", async () => {
   const r = (await documentView(db, doc.id, "proposed"))!;
   expect(r.mapping).toMatchObject({ shown: "batch", proposedAvailable: false });
 });
+
+it("document view after approval: no note, because mapping v2 computes total from total + gst", async () => {
+  const { id, d } = await runBatch("demo", BATCHES.demo());
+  await approve(d, id, "yiwei");
+  const r = (await documentView(db, await docId("INV-10202.pdf"), "batch"))!;
+  expect(r.mapping.version).toBe(2);
+  expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "506.00" }]);
+  expect(r.note).toBeNull();
+});
