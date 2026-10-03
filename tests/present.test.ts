@@ -11,7 +11,7 @@ it("describes fix operations in plain words", () => {
 });
 
 it("removes search-tool citation markers", () => {
-  expect(cleanMarkers("Totals exclude GST 【6:0†source】.")).toBe("Totals exclude GST .");
+  expect(cleanMarkers("Totals exclude GST 【6:0†source】.")).toBe("Totals exclude GST.");
   expect(cleanMarkers("  plain  ")).toBe("plain");
 });
 

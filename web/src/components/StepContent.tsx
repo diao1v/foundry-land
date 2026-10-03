@@ -1,0 +1,195 @@
+import { useState } from "react";
+import { Link } from "react-router";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import type { BatchDetail } from "@/lib/api";
+import { clock, money, pct } from "@/lib/format";
+import { cn } from "@/lib/utils";
+
+const SEV: Record<string, string> = {
+  BREAKING: "bg-coral-soft text-coral-ink", WARNING: "bg-warn-soft text-[#8A5A00]", INFO: "bg-muted text-muted-foreground", OK: "bg-ok-soft text-ok",
+};
+const Sev = ({ v }: { v: string }) => <Badge className={cn("rounded-full px-2 text-[10.5px] font-semibold", SEV[v])}>{v}</Badge>;
+const Panel = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <Card className="gap-0 px-5 py-4">
+    <h4 className="mb-3 text-[13px] font-semibold">{title}</h4>
+    {children}
+  </Card>
+);
+const Rule = ({ children }: { children: React.ReactNode }) => (
+  <p className="mt-4 border-t pt-3 text-[12.5px] text-muted-foreground"><b className="font-semibold text-foreground">Code rule · </b>{children}</p>
+);
+const NotYet = ({ text }: { text: string }) => <Panel title="Not yet"><p className="text-muted-foreground">{text}</p></Panel>;
+
+export function StepContent({ tab, d }: { tab: string; d: BatchDetail }) {
+  const step = d.steps.find((s) => s.key === tab);
+  if (step?.status === "skipped") return <NotYet text={`${step.label}: not needed. All checks passed, so the batch loaded without agents.`} />;
+
+  if (tab === "checks") {
+    const r = d.checkReport;
+    return (
+      <Panel title="Checks · run by code on every invoice">
+        {!r ? (
+          <p className="text-muted-foreground">{step?.summary}</p>
+        ) : (
+          <>
+            {r.findings.length === 0 && <p>All checks passed.</p>}
+            <ul className="space-y-2">
+              {r.findings.map((f, i) => (
+                <li key={i} className="flex items-start gap-2"><Sev v={f.severity} /><span>{f.message}</span></li>
+              ))}
+            </ul>
+            {r.stats.avgTotal != null && r.stats.historyAvgTotal != null && (
+              <p className="mt-3 text-muted-foreground">
+                Average total <b className="text-foreground">{money(r.stats.avgTotal)}</b> vs {money(r.stats.historyAvgTotal)} history
+                ({pct((r.stats.avgTotal - r.stats.historyAvgTotal) / r.stats.historyAvgTotal)}, {r.stats.historyCount} invoices)
+              </p>
+            )}
+          </>
+        )}
+        <h5 className="mt-5 mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Invoices</h5>
+        <div className="grid grid-cols-5 gap-2">
+          {d.documents.map((doc) => (
+            <Link key={doc.id} to={`/documents/${doc.id}`} className="rounded-md border px-3 py-2 hover:border-navy">
+              <span className="block font-mono text-[12.5px]">{doc.name}</span>
+              <span className="block text-[11px] text-muted-foreground">{doc.flaggedBy.length ? `flagged: ${doc.flaggedBy.join(", ")}` : "no issues"}</span>
+            </Link>
+          ))}
+        </div>
+      </Panel>
+    );
+  }
+
+  if (tab === "analyst") {
+    if (!d.drift) return <NotYet text={step?.summary ?? ""} />;
+    return (
+      <Panel title="Drift analyst · reads the check report">
+        <ul className="space-y-3">
+          {d.drift.findings.map((f, i) => (
+            <li key={i}>
+              <b className="font-semibold">{f.kind.replace("_", " ")}</b>
+              {f.field && <code className="ml-1.5 rounded bg-muted px-1.5 font-mono text-[12px]">{f.field}</code>}
+              {f.labels.length > 0 && <span className="ml-1.5 text-muted-foreground">{f.labels.join(" → ")}</span>}
+              <p className="text-muted-foreground">{f.evidence}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3">{d.drift.impact}</p>
+        <Rule>
+          Severity: code <b>{d.codeSeverity}</b> · agent <b>{d.drift.severity}</b> → final <b>{d.finalSeverity}</b>. The agent can raise severity, never lower it.
+        </Rule>
+      </Panel>
+    );
+  }
+
+  if (tab === "investigator") {
+    const inv = d.investigation;
+    if (!inv) return <NotYet text={step?.summary ?? ""} />;
+    return (
+      <Panel title="Investigator · searched the provider notices">
+        <p>{inv.explanation}</p>
+        {inv.verifiedCitations.map((c, i) => (
+          <blockquote key={i} className="my-3 rounded-md border-l-[3px] border-navy bg-canvas px-4 py-2.5 text-[14.5px]">
+            “{c.quote}”
+            <small className="mt-1 block text-[11.5px] text-muted-foreground">
+              {c.docId} · <span className="font-semibold text-ok">✓ quote found in the notice</span>
+            </small>
+          </blockquote>
+        ))}
+        {inv.unexplained.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-semibold text-muted-foreground">Not explained</p>
+            <ul className="list-disc pl-5 text-muted-foreground">{inv.unexplained.map((u) => <li key={u}>{u}</li>)}</ul>
+          </div>
+        )}
+        <Rule>
+          Every quote must appear word for word in a notice, or it is thrown away. {inv.verifiedCitations.length} kept ·{" "}
+          {inv.rejectedCitations.length} rejected. Notices are evidence only; instructions inside them are ignored.
+        </Rule>
+      </Panel>
+    );
+  }
+
+  if (tab === "fix") {
+    if (!d.proposals.length) return <NotYet text={step?.summary ?? ""} />;
+    return (
+      <Panel title="Fix proposer ⇄ dry-run · at most 3 rounds">
+        <div className="space-y-3">
+          {d.proposals.map((p) => (
+            <div key={p.round} className="rounded-md border px-4 py-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <b className="font-semibold">Round {p.round}</b>
+                <span className={cn("text-[12.5px] font-semibold", p.passed ? "text-ok" : "text-bad")}>
+                  {p.passed ? "Dry-run passed" : p.rejectedReason ? "Rejected before dry-run" : "Dry-run failed"}
+                </span>
+              </div>
+              <ul className="list-disc pl-5">{p.described.map((t) => <li key={t}>{t}</li>)}</ul>
+              {!p.passed && (
+                <p className="mt-1.5 text-[12.5px] text-muted-foreground">{p.rejectedReason ?? p.dryRunFindings.map((f) => f.message).join("; ")}</p>
+              )}
+            </div>
+          ))}
+        </div>
+        <Rule>Only three operation types are allowed; code dry-runs every proposal in memory before anyone sees it. Nothing is written.</Rule>
+      </Panel>
+    );
+  }
+
+  if (tab === "decision") {
+    const dec = d.decision;
+    if (dec.state === "approved" && dec.result) {
+      const stat = (k: string, v: string) => (
+        <div className="rounded-lg bg-canvas px-4 py-3"><span className="text-xs text-muted-foreground">{k}</span><b className="block text-xl font-semibold">{v}</b></div>
+      );
+      return (
+        <Panel title="Your decision · approved">
+          <p className="mb-3">
+            <b>{dec.by}</b> approved round {d.proposals.find((p) => p.passed)?.round}{dec.at && <span className="text-muted-foreground"> · {clock(dec.at)}</span>}
+          </p>
+          <div className="grid grid-cols-4 gap-3">
+            {stat("Mapping", `v${dec.result.from} → v${dec.result.to}`)}
+            {stat("Invoices loaded", String(dec.result.invoices))}
+            {stat("Average total", money(dec.result.avgTotal))}
+            {stat("vs history", dec.result.changeVsHistory == null ? "–" : pct(dec.result.changeVsHistory))}
+          </div>
+        </Panel>
+      );
+    }
+    return (
+      <Panel title="Your decision">
+        <p className="text-muted-foreground">
+          {dec.state === "waiting" ? "Read the steps, then approve or reject on the right. Approving creates a new mapping version and reloads this batch."
+            : dec.state === "rejected" ? `Rejected by ${dec.by}: “${dec.reason}”.`
+            : dec.state === "escalated" ? `${dec.reason}. A person must look at this batch.`
+            : step?.summary}
+        </p>
+      </Panel>
+    );
+  }
+
+  return <Timeline d={d} />;
+}
+
+function Timeline({ d }: { d: BatchDetail }) {
+  const [open, setOpen] = useState<number>();
+  const who = (actor: string) =>
+    actor.startsWith("human:") ? "bg-coral-soft text-coral-ink" : actor.startsWith("agent:") ? "bg-navy text-white" : "bg-muted text-muted-foreground";
+  return (
+    <Panel title="Audit timeline · every step, in order">
+      <ol>
+        {d.events.map((e) => (
+          <li key={e.id} className="border-b border-[#EEF1F5] py-2 last:border-0">
+            <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen(open === e.id ? undefined : e.id)}>
+              <span className="w-20 shrink-0 font-mono text-[12px] text-muted-foreground">{clock(e.at)}</span>
+              <span className={cn("w-36 shrink-0 truncate rounded-full px-2 py-0.5 text-center text-[11px] font-semibold", who(e.actor))}>{e.actor}</span>
+              <span className="font-medium">{e.action}</span>
+            </button>
+            {open === e.id && (
+              <pre className="mt-2 ml-[8.75rem] max-h-64 overflow-auto rounded-md bg-canvas p-3 font-mono text-[11.5px]">{JSON.stringify(e.details, null, 2)}</pre>
+            )}
+          </li>
+        ))}
+      </ol>
+    </Panel>
+  );
+}

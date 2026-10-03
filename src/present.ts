@@ -13,7 +13,7 @@ export function describeOp(op: FixOp): string {
 }
 
 // The search tool leaves citation markers like 【6:0†source】 in agent text
-export const cleanMarkers = (text: string) => text.replace(/【[^】]*】/g, "").trim();
+export const cleanMarkers = (text: string) => text.replace(/\s*【[^】]*】/g, "").trim();
 
 export const pct = (change: number) => {
   const v = Math.abs(change * 100).toFixed(1);
