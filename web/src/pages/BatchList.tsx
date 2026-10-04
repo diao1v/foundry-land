@@ -17,7 +17,9 @@ const STATUS: Record<string, { text: (r: BatchRow) => string; dot: string; ink: 
 };
 const running = (r: BatchRow) => {
   const step = r.steps.find((s) => s.status === "running");
-  return { text: `Agents working${step ? ` · ${step.label}` : ""}`, dot: "bg-white ring-2 ring-inset ring-navy", ink: "text-navy" };
+  // reading the PDFs and running the checks is code; agents only start when a check fails
+  const text = !step || step.key === "checks" ? "Checks running" : `Agents working · ${step.label}`;
+  return { text, dot: "bg-white ring-2 ring-inset ring-navy", ink: "text-navy" };
 };
 
 const BAR: Record<Step["status"], string> = {

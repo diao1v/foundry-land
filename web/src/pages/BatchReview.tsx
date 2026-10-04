@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 const VIEW = "h-auto flex-none rounded-none px-1 pb-2 text-[13px] font-semibold text-muted-foreground data-active:text-foreground data-[state=active]:text-foreground";
 const STILL_RUNNING = (d: BatchDetail) => !["LOADED", "RELOADED", "CLOSED", "ESCALATED", "AWAITING_REVIEW"].includes(d.batch.state);
+const CODE_STATES = ["RECEIVED", "EXTRACTED", "MAPPED", "CHECKED"];
 const TAG: Record<string, [string, string]> = {
   AWAITING_REVIEW: ["Waiting for your review", "bg-coral-soft text-coral-ink"],
   LOADED: ["Loaded", "bg-ok-soft text-ok"],
@@ -36,7 +37,8 @@ export function BatchReview() {
   if (!d) return <Shell crumbs={[{ label: "Batches", to: "/" }]} error={error}><p className="text-muted-foreground">Loading…</p></Shell>;
 
   const tab = picked ?? openingTab(d);
-  const [tagText, tagClass] = d.decision.state === "rerun" ? ["Run again", TAG.CLOSED[1]] : (TAG[d.batch.state] ?? ["Agents working", "bg-[#E3E9F2] text-navy"]);
+  const working = CODE_STATES.includes(d.batch.state) ? "Checks running" : "Agents working"; // no agent runs before the checks fail
+  const [tagText, tagClass] = d.decision.state === "rerun" ? ["Run again", TAG.CLOSED[1]] : (TAG[d.batch.state] ?? [working, "bg-[#E3E9F2] text-navy"]);
   return (
     <Shell crumbs={[{ label: "Batches", to: "/" }, { label: d.batch.name }]} error={error}>
       <div className="flex items-center gap-3">
