@@ -46,11 +46,12 @@ export const responseText = (body: ResponseBody) =>
     .filter(Boolean)
     .join("\n");
 
-export async function askAgent(cfg: FoundryCfg, agent: string, input: string): Promise<string> {
+// extra: Responses API options for this call, e.g. { tool_choice: "required" } to force a search first
+export async function askAgent(cfg: FoundryCfg, agent: string, input: string, extra: Record<string, unknown> = {}): Promise<string> {
   const res = await fetch(`${cfg.FOUNDRY_PROJECT_ENDPOINT}/agents/${agent}/endpoint/protocols/openai/responses?${API}`, {
     method: "POST",
     headers: await headers(),
-    body: JSON.stringify({ input, max_output_tokens: 8000 }), // cost guard; reasoning models spend part of it on hidden reasoning
+    body: JSON.stringify({ input, max_output_tokens: 8000, ...extra }), // cost guard; reasoning models spend part of it on hidden reasoning
     signal: AbortSignal.timeout(90_000),
   });
   const body = (await res.json().catch(() => ({}))) as ResponseBody;
