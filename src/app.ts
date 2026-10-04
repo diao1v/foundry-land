@@ -2,14 +2,14 @@ import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { batchDetail, documentView, listBatches } from "./api";
-import { audit, IllegalTransition } from "./audit";
+import { audit, IllegalTransition, transition } from "./audit";
 import { answerChat, ChatRequest, GUIDE_DOWN, type ChatGuide } from "./chat";
 import { batches, documents } from "./db/schema";
 import { batchNameFromEvent, type EGEvent } from "./events";
@@ -93,6 +93,32 @@ export function makeApp(deps: Deps, opts: AppOptions) {
     if (!body.success) return c.json({ error: "Send { reviewer, reason }" }, 400);
     await reject(deps, id(c.req.param("id")), body.data.reviewer, body.data.reason);
     return c.json({ ok: true });
+  });
+
+  // Run the pipeline again on the same PDFs, as a new batch (the old one keeps its evidence and is closed).
+  // Only when the agents' result is in question: waiting for review, or escalated.
+  app.post("/api/batches/:id/rerun", async (c) => {
+    const body = Approve.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "Send { reviewer }" }, 400);
+    const [b] = await db.select().from(batches).where(eq(batches.id, id(c.req.param("id"))));
+    if (!b) return c.json({ error: "Batch not found" }, 404);
+    if (b.state !== "AWAITING_REVIEW" && b.state !== "ESCALATED") return c.json({ error: `A ${b.state.toLowerCase()} batch can't run again.` }, 409);
+    // b1 → b1-run2 → b1-run3: numbered from the original name
+    const base = b.name.replace(/-run\d+$/, "");
+    const taken = await db.select({ name: batches.name }).from(batches).where(like(batches.name, `${base}-run%`));
+    const next = Math.max(1, ...taken.map((t) => Number(t.name.slice(base.length + 4)) || 0)) + 1;
+    const name = `${base}-run${next}`;
+    const pdfs = await deps.listPdfs(b.name);
+    if (!pdfs.length) return c.json({ error: "No PDFs found for this batch." }, 409);
+    for (const p of pdfs) await opts.upload(`${name}/${basename(p)}`, await opts.pdf(p), "application/pdf");
+    await opts.upload(`${name}/batch.json`, Buffer.from(JSON.stringify({ files: pdfs.map((p) => basename(p)), rerunOf: b.id, uploadedAt: new Date().toISOString(), source: "rerun" })), "application/json");
+    const newId = await startBatch(db, name);
+    if (newId == null) return c.json({ error: "Already running again. Reload the page." }, 409);
+    await transition(db, b.id, "CLOSED", `human:${body.data.reviewer}`, "batch.rerun", { newBatchId: newId, newName: name });
+    void processBatch(deps, newId).catch((err) =>
+      audit(db, { batchId: newId, actor: "system", action: "batch.crashed", details: { error: String(err) } }).catch(() => console.error(err)),
+    );
+    return c.json({ id: newId, name });
   });
 
   const MAX_FILES = 20;

@@ -92,7 +92,7 @@ export function batchSteps(i: StepInput): Step[] {
         : i.state === "RELOADED"
           ? { status: "done", summary: `Approved by ${person("review.approved")}` }
           : i.state === "CLOSED"
-            ? { status: "done", summary: has("review.rejected") ? `Rejected by ${person("review.rejected")}` : "Closed" }
+            ? { status: "done", summary: has("batch.rerun") ? "Run again as a new batch" : has("review.rejected") ? `Rejected by ${person("review.rejected")}` : "Closed" }
             : i.state === "ESCALATED"
               ? { status: "warning", summary: "Needs a person" }
               : notReached;

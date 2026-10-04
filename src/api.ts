@@ -22,7 +22,8 @@ export type BatchListResponse = {
   batches: BatchRow[];
 };
 export type Decision = {
-  state: "todo" | "waiting" | "approved" | "rejected" | "not_needed" | "escalated";
+  state: "todo" | "waiting" | "approved" | "rejected" | "not_needed" | "escalated" | "rerun";
+  rerunAs?: { id: number; name: string }; // closed because a person ran the pipeline again as this batch
   by?: string; at?: string; reason?: string;
   proposal?: { round: number; described: string[]; dryRunAvg: number | null };
   // only announced price changes were left: loaded as is with no mapping change, by a person or (dated correctly) by itself
@@ -187,6 +188,9 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
       result: { from: passed.baseVersion, to: b.mappingVersion ?? passed.baseVersion + 1, invoices: stats?.n ?? 0, avgTotal: stats?.avg ?? null, changeVsHistory: change(stats?.avg ?? null, report?.stats.historyAvgTotal),
         mappingChanges: mappingChanges(at(passed.baseVersion), at(b.mappingVersion ?? passed.baseVersion + 1)) },
     };
+  } else if (b.state === "CLOSED" && event("batch.rerun")) {
+    const d = event("batch.rerun")!.details as { newBatchId: number; newName: string };
+    decision = { state: "rerun", by: who("batch.rerun"), at: event("batch.rerun")!.at.toISOString(), rerunAs: { id: d.newBatchId, name: d.newName } };
   } else if (b.state === "CLOSED")
     decision = { state: "rejected", by: who("review.rejected"), at: event("review.rejected")?.at.toISOString(), reason: (event("review.rejected")?.details as { reason?: string })?.reason };
   else if (b.state === "ESCALATED") {

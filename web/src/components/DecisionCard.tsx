@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type BatchDetail, postJson, REVIEWER } from "@/lib/api";
+import { Link, useNavigate } from "react-router";
+import { type BatchDetail, postJson, postJsonFor, REVIEWER } from "@/lib/api";
 import { clock, money, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) {
-  const [pending, setPending] = useState<"approve" | "reject">();
+  const [pending, setPending] = useState<"approve" | "reject" | "rerun">();
+  const navigate = useNavigate();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string>();
@@ -24,6 +26,20 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
       setPending(undefined);
     }
     onDone(); // refetch either way: after a 409 the batch may already be approved in another tab
+  };
+
+  // Run the pipeline again on the same PDFs as a new batch; this one is closed and keeps its evidence
+  const runAgain = async () => {
+    setPending("rerun");
+    setError(undefined);
+    try {
+      const r = await postJsonFor<{ id: number }>(`/api/batches/${d.batch.id}/rerun`, { reviewer: REVIEWER });
+      navigate(`/batches/${r.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+      setPending(undefined);
+      onDone();
+    }
   };
 
   const reject = (
@@ -51,7 +67,7 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
       )}
     >
       <h4 className="mb-3 text-[13px] font-semibold">
-        {dec.state === "approved" || dec.state === "rejected" ? "Done" : dec.state === "escalated" ? "Needs a person" : "Your decision"}
+        {dec.state === "approved" || dec.state === "rejected" || dec.state === "rerun" ? "Done" : dec.state === "escalated" ? "Needs a person" : "Your decision"}
       </h4>
 
       {dec.state === "waiting" && dec.proposal && (
@@ -141,6 +157,24 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
           <p className="mb-4 text-[13px] text-muted-foreground">{dec.reason}. No verified fix, so a person must look at it.</p>
           {reject}
         </>
+      )}
+
+      {dec.state === "rerun" && dec.rerunAs && (
+        <p className="text-[13px] text-muted-foreground">
+          Run again by <b className="text-foreground">{dec.by}</b>{dec.at && ` at ${clock(dec.at)}`} as{" "}
+          <Link to={`/batches/${dec.rerunAs.id}`} className="font-semibold text-foreground underline-offset-4 hover:underline">{dec.rerunAs.name}</Link>.
+          Nothing was loaded from this batch.
+        </p>
+      )}
+
+      {(dec.state === "waiting" || dec.state === "escalated") && (
+        <div className="mt-4 border-t border-[#EEF1F5] pt-3 text-xs text-muted-foreground">
+          Something looks wrong?{" "}
+          <button type="button" onClick={() => void runAgain()} disabled={!!pending} className="font-semibold text-foreground underline-offset-4 hover:underline disabled:opacity-50">
+            {pending === "rerun" ? "Starting…" : "Run again"}
+          </button>{" "}
+          on the same PDFs as a new batch.
+        </div>
       )}
 
       {error && (dec.state === "waiting" || dec.state === "escalated") && (
