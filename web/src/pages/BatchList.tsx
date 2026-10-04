@@ -12,7 +12,7 @@ const STATUS: Record<string, { text: (r: BatchRow) => string; dot: string; ink: 
   AWAITING_REVIEW: { text: () => "Waiting for your review", dot: "bg-coral needs-you", ink: "text-coral-ink" },
   LOADED: { text: () => "Loaded", dot: "bg-ok", ink: "text-ok" },
   RELOADED: { text: () => "Reloaded", dot: "bg-ok", ink: "text-ok" },
-  CLOSED: { text: () => "Rejected", dot: "bg-navy-muted", ink: "text-muted-foreground" },
+  CLOSED: { text: (r) => (r.steps.at(-1)?.summary.startsWith("Run again") ? "Run again" : "Rejected"), dot: "bg-navy-muted", ink: "text-muted-foreground" },
   ESCALATED: { text: (r) => `Needs a person · ${r.steps.find((s) => s.status === "failed" || s.status === "warning")?.summary ?? ""}`, dot: "bg-warn", ink: "text-warn" },
 };
 const running = (r: BatchRow) => {

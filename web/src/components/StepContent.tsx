@@ -261,7 +261,7 @@ export function LoadedData({ d }: { d: BatchDetail }) {
     return (
       <Panel title="Loaded data">
         <p className="font-semibold">
-          {state === "CLOSED" ? "Nothing loaded. The batch was rejected." : HELD.includes(state) ? "Nothing loaded. The whole batch is held until a person approves." : "Nothing loaded yet. Checks run first."}
+          {d.decision.state === "rerun" ? `Nothing loaded. This batch was run again as ${d.decision.rerunAs?.name}.` : state === "CLOSED" ? "Nothing loaded. The batch was rejected." : HELD.includes(state) ? "Nothing loaded. The whole batch is held until a person approves." : "Nothing loaded yet. Checks run first."}
         </p>
         {HELD.includes(state) && (
           <p className="mt-1 text-muted-foreground">In production, the clean invoices would load and only the changed ones would wait.</p>
