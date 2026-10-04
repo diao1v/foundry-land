@@ -88,3 +88,11 @@
   50% { box-shadow: 0 0 0 6px rgb(240 90 60 / 0.08); }
 }
 .needs-you { animation: needs-you 1.4s ease-in-out infinite; }
+
+/* chat: three dots while an answer loads */
+@keyframes chat-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+.chat-dot { animation: chat-dot 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .chat-dot { animation: none; opacity: 0.7; } }
