@@ -102,7 +102,25 @@ export function DecisionCard({ d, onDone }: { d: BatchDetail; onDone(): void }) 
         </p>
       )}
 
-      {dec.state === "not_needed" && <p className="text-[13px] text-muted-foreground">Loaded automatically. All checks passed, so no decision was needed.</p>}
+      {dec.state === "not_needed" && !dec.loadAsIs && <p className="text-[13px] text-muted-foreground">Loaded automatically. All checks passed, so no decision was needed.</p>}
+
+      {dec.state === "not_needed" && dec.loadAsIs && (
+        <>
+          <p className="mb-1 text-xs font-semibold text-ok">Loaded automatically — price change announced</p>
+          <ul className="mb-3">
+            {dec.loadAsIs.map((c) => (
+              <li key={c.procedure} className="border-b border-[#EEF1F5] py-2 text-[13px] last:border-0">
+                {c.procedure} <span className="font-mono">{money(c.historyFee)} → {money(c.fee)}</span>{" "}
+                <span className="text-muted-foreground">({pct((c.fee - c.historyFee) / c.historyFee)}){c.from && ` from ${c.from}`}</span>
+                <p className="mt-1 text-[12.5px] text-muted-foreground italic">“{c.quote}”</p>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            The clinic announced this price. Code checked the quote, the new fee and the start date, so no person was needed.
+          </p>
+        </>
+      )}
 
       {dec.state === "approved" && dec.result && (
         <p className="text-[13px] text-muted-foreground">

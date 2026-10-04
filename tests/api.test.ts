@@ -1,12 +1,13 @@
 import { eq, like } from "drizzle-orm";
 import { beforeEach, expect, it } from "vitest";
 import { batchDetail, documentView, listBatches } from "../src/api";
-import { documents, invoices } from "../src/db/schema";
+import { documents, invoices, mappingVersions } from "../src/db/schema";
 import { BATCHES } from "../src/demo/invoice-data";
 import { seedHistory } from "../src/demo/seed";
 import { approve } from "../src/orchestrator";
 import { db, resetDb } from "./db";
-import { INVESTIGATION, priceBatch, runBatch } from "./fixtures";
+import { applyFix } from "../src/fix";
+import { GOOD_FIX, INVESTIGATION, PRICE_QUOTE, priceBatch, runBatch, V1 } from "./fixtures";
 
 beforeEach(async () => {
   await resetDb();
@@ -224,4 +225,15 @@ it("loaded rows also come back exactly as stored: real column names, in table or
   ]);
   expect(row).toMatchObject({ invoice_no: "INV-10100", provider_no: "ED-30512", total: 126.5, gst: null, batch_id: id, mapping_version: 1 });
   expect(row.line_items).toEqual([{ description: "General inspection", fee: 74.75 }, { description: "X-ray", fee: 51.75 }]);
+});
+
+it("an announced price change that loaded by itself says why, with the old and new fee and the start date", async () => {
+  await db.insert(mappingVersions).values({ version: 2, mapping: applyFix(V1, GOOD_FIX), createdBy: "test", reason: "format change" });
+  const { id } = await runBatch("price", priceBatch("v2"), {
+    investigate: async () => ({ ...INVESTIGATION, priceChanges: [{ procedure: "Extraction", newFee: 276, docId: "x", quote: PRICE_QUOTE, effectiveFrom: "2026-11-01" }] }),
+  });
+  expect((await batchDetail(db, id))!.decision).toEqual({
+    state: "not_needed",
+    loadAsIs: [{ procedure: "Extraction", historyFee: 253, fee: 276, from: "2026-11-01", quote: PRICE_QUOTE, docId: "price-update-example-dental" }],
+  });
 });

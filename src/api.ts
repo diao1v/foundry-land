@@ -25,8 +25,8 @@ export type Decision = {
   state: "todo" | "waiting" | "approved" | "rejected" | "not_needed" | "escalated";
   by?: string; at?: string; reason?: string;
   proposal?: { round: number; described: string[]; dryRunAvg: number | null };
-  // only announced price changes were left: a person loads the batch as is, with no mapping change
-  loadAsIs?: { procedure: string; historyFee: number; fee: number; quote: string; docId: string }[];
+  // only announced price changes were left: loaded as is with no mapping change, by a person or (dated correctly) by itself
+  loadAsIs?: { procedure: string; historyFee: number; fee: number; from?: string | null; quote: string; docId: string }[];
   result?: {
     from: number; to: number; invoices: number; avgTotal: number | null; changeVsHistory: number | null;
     mappingChanges: { field: string; before: string; after: string }[];
@@ -160,11 +160,13 @@ export async function batchDetail(db: Db, id: number): Promise<BatchDetail | nul
   const asIsRequested = (event("review.requested")?.details as { loadAsIs?: boolean })?.loadAsIs === true;
   const asIs = (inc?.investigation?.verifiedPriceChanges ?? []).flatMap((p) => {
     const f = report?.findings.find((x) => x.check === "fee" && x.procedure && sameProcedure(p.procedure, procedureKey(x.procedure)));
-    return f?.fee != null && f.historyFee != null ? [{ procedure: f.procedure!, historyFee: f.historyFee, fee: f.fee, quote: p.quote, docId: p.docId }] : [];
+    return f?.fee != null && f.historyFee != null
+      ? [{ procedure: f.procedure!, historyFee: f.historyFee, fee: f.fee, ...(p.effectiveFrom ? { from: p.effectiveFrom } : {}), quote: p.quote, docId: p.docId }]
+      : [];
   });
 
   let decision: Decision = { state: "todo" };
-  if (b.state === "LOADED") decision = { state: "not_needed" };
+  if (b.state === "LOADED") decision = asIs.length ? { state: "not_needed", loadAsIs: asIs } : { state: "not_needed" };
   else if (b.state === "AWAITING_REVIEW" && !passed && asIsRequested) decision = { state: "waiting", loadAsIs: asIs };
   else if (b.state === "RELOADED" && !passed && asIsRequested) {
     const stats = (await loadedStats(db)).get(id);
