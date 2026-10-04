@@ -84,13 +84,13 @@ fi
 echo "$([ "$FULL" = 1 ] && echo 7 || echo 6). Reset the demo data"
 reset
 ok "batches removed, mapping back to v1"
-[ "$(curl -s -o /dev/null -w '%{http_code}' "$URL/")" = 401 ] || fail "page is not password-protected"
-[ "$(curl -s -o /dev/null -w '%{http_code}' -u "demo:$DEMO_PASSWORD" "$URL/")" = 200 ] || fail "page does not load with the password"
+# the password is optional (removed for the interview); with or without it, the page must load
+[ "$(curl -s -o /dev/null -w '%{http_code}' -u "demo:$DEMO_PASSWORD" "$URL/")" = 200 ] || fail "page does not load"
 n=$(api "$URL/api/batches" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d if isinstance(d,list) else d.get("batches",[])))')
 [ "$n" = 0 ] || fail "app still shows $n batches"
-ok "password on, no batches"
+ok "page loads, no batches"
 
 echo
-echo "Ready: $URL  (user: demo)"
+echo "Ready: $URL"
 echo "Before the call: drop out/batches/normal/*.pdf once, so a normal Loaded batch is there."
 echo "Live batch to drop during the demo: out/batches/live/*.pdf"
