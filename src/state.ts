@@ -12,7 +12,7 @@ const NEXT: Record<BatchState, BatchState[]> = {
   CHECKED: ["LOADED", "INCIDENT_OPEN"],
   INCIDENT_OPEN: ["ANALYSED", "ESCALATED"],
   ANALYSED: ["INVESTIGATED", "ESCALATED"],
-  INVESTIGATED: ["PROPOSED", "AWAITING_REVIEW", "ESCALATED"], // → AWAITING_REVIEW: only announced price changes, load as is
+  INVESTIGATED: ["PROPOSED", "AWAITING_REVIEW", "LOADED", "ESCALATED"], // only announced price changes: LOADED when dated after the change, else a person decides
   PROPOSED: ["DRY_RUN", "PROPOSED", "ESCALATED"], // PROPOSED → PROPOSED: operation rejected before dry-run
   DRY_RUN: ["AWAITING_REVIEW", "PROPOSED", "ESCALATED"],
   AWAITING_REVIEW: ["RELOADED", "CLOSED"],

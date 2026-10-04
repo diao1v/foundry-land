@@ -6,7 +6,7 @@ import { BATCHES } from "../src/demo/invoice-data";
 import { seedHistory } from "../src/demo/seed";
 import { approve } from "../src/orchestrator";
 import { db, resetDb } from "./db";
-import { INVESTIGATION, runBatch } from "./fixtures";
+import { INVESTIGATION, priceBatch, runBatch } from "./fixtures";
 
 beforeEach(async () => {
   await resetDb();
@@ -159,11 +159,11 @@ it("after approval: reloaded rows show PDF total vs loaded total, and the mappin
 
 const priceInvestigate = async () => ({
   ...INVESTIGATION,
-  priceChanges: [{ procedure: "Extraction", newFee: 276, docId: "x", quote: "the fee for an extraction rises from $253.00 to $276.00 including GST" }],
+  priceChanges: [{ procedure: "Extraction", newFee: 276, docId: "x", quote: "the fee for an extraction rises from $253.00 to $276.00 including GST", effectiveFrom: null }],
 });
 
 it("price batch: waiting decision is load-as-is with the announced change; after approval no mapping change", async () => {
-  const { id, d } = await runBatch("price", BATCHES.price(), { investigate: priceInvestigate });
+  const { id, d } = await runBatch("price", priceBatch("v1"), { investigate: priceInvestigate });
   const before = (await batchDetail(db, id))!;
   expect(before.decision).toMatchObject({
     state: "waiting",
@@ -177,7 +177,7 @@ it("price batch: waiting decision is load-as-is with the announced change; after
 });
 
 it("per-invoice issues include fee changes", async () => {
-  const { id } = await runBatch("price", BATCHES.price(), { investigate: priceInvestigate });
+  const { id } = await runBatch("price", priceBatch("v1"), { investigate: priceInvestigate });
   const docs = (await batchDetail(db, id))!.documents;
   expect(docs.find((x) => x.name === "INV-10401")!.issues).toEqual(["Extraction fee +9.1%"]);
   expect(docs.find((x) => x.name === "INV-10400")!.issues).toEqual([]);
@@ -199,10 +199,10 @@ it("loaded rows list their procedures: as printed and as loaded", async () => {
 });
 
 it("load-as-is decision lists the change also when the agent names it 'an extraction'", async () => {
-  const { id } = await runBatch("price", BATCHES.price(), {
+  const { id } = await runBatch("price", priceBatch("v1"), {
     investigate: async () => ({
       ...INVESTIGATION,
-      priceChanges: [{ procedure: "an extraction", newFee: 276, docId: "x", quote: "the fee for an extraction rises from $253.00 to $276.00 including GST" }],
+      priceChanges: [{ procedure: "an extraction", newFee: 276, docId: "x", quote: "the fee for an extraction rises from $253.00 to $276.00 including GST", effectiveFrom: null }],
     }),
   });
   expect((await batchDetail(db, id))!.decision).toMatchObject({ state: "waiting", loadAsIs: [{ procedure: "Extraction", fee: 276, historyFee: 253 }] });

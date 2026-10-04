@@ -28,6 +28,8 @@ export function batchSteps(i: StepInput): Step[] {
     : { status: "todo", summary: "Not started" };
   const passed = has("checks.passed");
   const skipped: Pick<Step, "status" | "summary"> = { status: "skipped", summary: "Not needed" };
+  // loaded without a person because the clinic announced the new fee (and code verified it)
+  const announced = i.events.some((e) => e.action === "batch.loaded" && !!(e.details as { announcedPriceChanges?: unknown })?.announcedPriceChanges);
 
   const checks: Pick<Step, "status" | "summary"> = has("extraction.failed")
     ? { status: "failed", summary: "Extraction failed" }
@@ -73,7 +75,7 @@ export function batchSteps(i: StepInput): Step[] {
       ? { status: "failed", summary: "Agent unavailable" }
       : winner
         ? { status: "done", summary: `Passed round ${winner.round}` }
-        : i.proposals.length === 0 && i.events.some((e) => e.action === "review.requested" && (e.details as { loadAsIs?: boolean })?.loadAsIs)
+        : i.proposals.length === 0 && (announced || i.events.some((e) => e.action === "review.requested" && (e.details as { loadAsIs?: boolean })?.loadAsIs))
           ? { status: "skipped", summary: "Not needed — price change announced" }
           : has("fix.rounds_exhausted")
           ? { status: "failed", summary: "No fix in 3 rounds" }
@@ -84,7 +86,7 @@ export function batchSteps(i: StepInput): Step[] {
   const person = (action: string) => i.events.find((e) => e.action === action)?.actor.replace(/^human:/, "") ?? "a person";
   const decision: Pick<Step, "status" | "summary"> =
     i.state === "LOADED"
-      ? { status: "skipped", summary: "Loaded automatically" }
+      ? { status: "skipped", summary: announced ? "Loaded automatically — price change announced" : "Loaded automatically" }
       : i.state === "AWAITING_REVIEW"
         ? { status: "waiting", summary: "Waiting for you" }
         : i.state === "RELOADED"

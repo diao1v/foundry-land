@@ -4,7 +4,7 @@ import { processBatch, startBatch, type Deps } from "../src/orchestrator";
 import { db } from "./db";
 import type { DriftReport, Investigation } from "../src/agents/schemas";
 import type { FixOp } from "../src/fix";
-import { historyInvoices, type InvoiceData } from "../src/demo/invoice-data";
+import { historyInvoices, makeInvoice, type InvoiceData } from "../src/demo/invoice-data";
 import { procedureKey } from "../src/checks";
 import { applyMapping, Mapping } from "../src/mapping/mapping";
 import { round2 } from "../src/mapping/money";
@@ -97,3 +97,8 @@ export async function runBatch(name: string, invs: InvoiceData[], over: Partial<
   await processBatch(d, id);
   return { id, d };
 }
+
+// Extraction $240 + GST (was $220 + GST): the price rise the clinic's notice announces from 1 November 2026
+export const priceBatch = (layout: "v1" | "v2", date = "2026-11-02") =>
+  [0, 1, 2, 3, 4].map((k) => makeInvoice(400 + k, layout, date, { Extraction: 240 }));
+export const PRICE_QUOTE = "From 1 November 2026, the fee for an extraction rises from $253.00 to $276.00 including GST.";

@@ -69,15 +69,26 @@ it("verifies a price change only when the quote is in the notice and names the p
   const quote = "the fee for an extraction rises from $253.00 to $276.00 including GST";
   const { verified, rejected } = verifyPriceChanges(
     [
-      { procedure: "Extraction", newFee: 276, docId: "wrong-id", quote },
-      { procedure: "Extraction", newFee: 270, docId: "price-update", quote }, // fee not in the quote
-      { procedure: "Cleaning", newFee: 276, docId: "price-update", quote }, // procedure not in the quote
-      { procedure: "Extraction", newFee: 276, docId: "price-update", quote: "the fee for an extraction rises to $276.00" }, // not word for word
+      { procedure: "Extraction", newFee: 276, docId: "wrong-id", quote, effectiveFrom: null },
+      { procedure: "Extraction", newFee: 270, docId: "price-update", quote, effectiveFrom: null }, // fee not in the quote
+      { procedure: "Cleaning", newFee: 276, docId: "price-update", quote, effectiveFrom: null }, // procedure not in the quote
+      { procedure: "Extraction", newFee: 276, docId: "price-update", quote: "the fee for an extraction rises to $276.00", effectiveFrom: null }, // not word for word
     ],
     [priceNotice, ...notices],
   );
-  expect(verified).toEqual([{ procedure: "Extraction", newFee: 276, docId: "price-update", quote }]);
+  expect(verified).toEqual([{ procedure: "Extraction", newFee: 276, docId: "price-update", quote, effectiveFrom: null }]);
   expect(rejected).toHaveLength(3);
+});
+
+it("keeps the start date of a price change only when the quote states that date", () => {
+  const quote = "From 1 November 2026, the fee for an extraction rises from $253.00 to $276.00 including GST.";
+  const item = { procedure: "Extraction", newFee: 276, docId: "x", quote };
+  const { verified, rejected } = verifyPriceChanges(
+    [{ ...item, effectiveFrom: "2026-11-01" }, { ...item, effectiveFrom: "2026-12-01" }], // the second date is not in the quote
+    [priceNotice],
+  );
+  expect(verified).toEqual([{ ...item, docId: "price-update", effectiveFrom: "2026-11-01" }]);
+  expect(rejected).toHaveLength(1);
 });
 
 it("defines the project guide with search on the project-docs index", () => {

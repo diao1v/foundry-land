@@ -5,7 +5,8 @@ import { BATCHES } from "../src/demo/invoice-data";
 import { seedHistory } from "../src/demo/seed";
 import { approve, ReviewError, reject, startBatch } from "../src/orchestrator";
 import { db, resetDb } from "./db";
-import { DRIFT, GOOD_FIX, INVESTIGATION, runBatch as run } from "./fixtures";
+import { applyFix } from "../src/fix";
+import { DRIFT, GOOD_FIX, INVESTIGATION, PRICE_QUOTE, priceBatch, runBatch as run, V1 } from "./fixtures";
 const stateOf = async (id: number) => (await db.select().from(batches).where(eq(batches.id, id)))[0].state;
 const actions = async () => (await db.select().from(auditEvents)).map((e) => e.action);
 
@@ -145,17 +146,49 @@ it("escalates when extraction fails", async () => {
   expect(await actions()).toContain("extraction.failed");
 }, 10_000);
 
-const PRICE_QUOTE = "the fee for an extraction rises from $253.00 to $276.00 including GST";
-const priceInvestigation = (newFee = 276) => async () => ({
+const priceInvestigation = (newFee = 276, effectiveFrom: string | null = "2026-11-01") => async () => ({
   ...INVESTIGATION,
-  priceChanges: [{ procedure: "Extraction", newFee, docId: "x", quote: PRICE_QUOTE }],
+  priceChanges: [{ procedure: "Extraction", newFee, docId: "x", quote: PRICE_QUOTE, effectiveFrom }],
 });
 const noFixExpected = async () => {
   throw new Error("the fix proposer must not run");
 };
+// after the format change was approved: mapping v2 reads the new layout
+const withMappingV2 = () => db.insert(mappingVersions).values({ version: 2, mapping: applyFix(V1, GOOD_FIX), createdBy: "test", reason: "format change" });
+
+it("a new-layout price batch whose fee change the clinic announced loads by itself", async () => {
+  await withMappingV2();
+  let notified = 0;
+  const { id } = await run("price", priceBatch("v2"), { investigate: priceInvestigation(), proposeFix: noFixExpected, notifyReview: async () => { notified++; } });
+  expect(await stateOf(id)).toBe("LOADED");
+  expect(notified).toBe(0);
+  expect(await db.$count(fixProposals)).toBe(0);
+  const rows = await db.select().from(invoices).where(eq(invoices.batchId, id));
+  expect(rows).toHaveLength(5);
+  expect(rows.every((r) => r.mappingVersion === 2)).toBe(true);
+  const last = (await db.select().from(auditEvents)).at(-1)!;
+  expect(last).toMatchObject({
+    action: "batch.loaded",
+    details: { announcedPriceChanges: [{ procedure: "Extraction", newFee: 276, effectiveFrom: "2026-11-01", quote: PRICE_QUOTE }] },
+  });
+});
+
+it("invoices dated before the announced date go to a person instead", async () => {
+  await withMappingV2();
+  const { id } = await run("price", priceBatch("v2", "2026-10-20"), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  expect(await stateOf(id)).toBe("AWAITING_REVIEW");
+  const last = (await db.select().from(auditEvents)).at(-1)!;
+  expect(last).toMatchObject({ action: "review.requested", details: { loadAsIs: true, datedBeforeChange: ["INV-10401", "INV-10404"] } });
+});
+
+it("a price change with no start date goes to a person instead", async () => {
+  await withMappingV2();
+  const { id } = await run("price", priceBatch("v2"), { investigate: priceInvestigation(276, null), proposeFix: noFixExpected });
+  expect(await stateOf(id)).toBe("AWAITING_REVIEW");
+});
 
 it("a price batch with a verified notice goes to review as load-as-is, without the fix step", async () => {
-  const { id } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  const { id } = await run("price", priceBatch("v1"), { investigate: priceInvestigation(276, null), proposeFix: noFixExpected });
   expect(await stateOf(id)).toBe("AWAITING_REVIEW");
   expect(await db.$count(fixProposals)).toBe(0);
   const last = (await db.select().from(auditEvents)).at(-1)!;
@@ -163,7 +196,7 @@ it("a price batch with a verified notice goes to review as load-as-is, without t
 });
 
 it("approving load-as-is loads with the current mapping and creates no mapping version", async () => {
-  const { id, d } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  const { id, d } = await run("price", priceBatch("v1"), { investigate: priceInvestigation(276, null), proposeFix: noFixExpected });
   await approve(d, id, "reviewer");
   expect(await stateOf(id)).toBe("RELOADED");
   expect((await db.select().from(mappingVersions)).map((v) => v.version)).toEqual([1]);
@@ -173,7 +206,7 @@ it("approving load-as-is loads with the current mapping and creates no mapping v
 });
 
 it("load-as-is is refused when the mapping changed since", async () => {
-  const { id, d } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
+  const { id, d } = await run("price", priceBatch("v1"), { investigate: priceInvestigation(276, null), proposeFix: noFixExpected });
   const [v1] = await db.select().from(mappingVersions);
   await db.insert(mappingVersions).values({ version: 2, mapping: v1.mapping, createdBy: "test", reason: "other batch" });
   await expect(approve(d, id, "reviewer")).rejects.toThrow(ReviewError);
@@ -181,7 +214,7 @@ it("load-as-is is refused when the mapping changed since", async () => {
 });
 
 it("a price notice with another fee does not explain the batch, so it goes through the fix loop", async () => {
-  const { id } = await run("price", BATCHES.price(), {
+  const { id } = await run("price", priceBatch("v1"), {
     investigate: priceInvestigation(270),
     proposeFix: async () => ({ operations: GOOD_FIX.slice(0, 1), reasoning: "x" }),
   });

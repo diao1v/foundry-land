@@ -33,8 +33,10 @@ proposed change, the dry run result, and each PDF next to the values read from i
   the batch with it. Old versions never change, so a change can be rolled back.
 - **Reject:** nothing is stored.
 
-If a notice announced a new price and that explains everything, there is nothing to fix. The reviewer can
-approve loading the batch as it is, with no new mapping version.
+If a notice announced a new price and that explains everything, there is nothing to fix. When every
+affected invoice is dated on or after the date the new price starts, the batch is stored straight away, with
+no person needed. If an invoice is dated before that date, or the notice gives no date, a reviewer decides
+whether to load the batch as it is. Either way no new mapping version is made.
 
 The next batch from the same provider uses the new mapping version, passes the checks and is stored with no
 agents and no person.
@@ -45,6 +47,7 @@ Every batch moves through fixed states, and only allowed moves are possible:
 
 - RECEIVED → EXTRACTED → MAPPED → CHECKED → LOADED (the happy route)
 - CHECKED → INCIDENT_OPEN → ANALYSED → INVESTIGATED → PROPOSED → DRY_RUN → AWAITING_REVIEW
+- INVESTIGATED → LOADED (an announced price change, correctly dated: no person needed)
 - AWAITING_REVIEW → RELOADED (approved) or CLOSED (rejected)
 - Any agent or reading failure → ESCALATED: a person takes over and nothing is stored.
 

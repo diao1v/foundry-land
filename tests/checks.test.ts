@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { basisFees, maxSeverity, runChecks } from "../src/checks";
 import { BATCHES, makeInvoice } from "../src/demo/invoice-data";
-import { checkDocs, HISTORY, V1 } from "./fixtures";
+import { checkDocs, HISTORY, priceBatch, V1 } from "./fixtures";
 
 it("history: 60 invoices, 20 fees per procedure, an inspection on every visit", () => {
   expect(HISTORY.count).toBe(60);
@@ -28,7 +28,7 @@ it("stops the demo batch: rename is BREAKING, new labels INFO, every changed pro
 });
 
 it("the price batch: only the extraction fee moved, +9.1%", () => {
-  const r = runChecks(checkDocs(V1, BATCHES.price()), HISTORY);
+  const r = runChecks(checkDocs(V1, priceBatch("v1")), HISTORY);
   expect(r.findings).toEqual([
     expect.objectContaining({ check: "fee", severity: "WARNING", procedure: "Extraction", fee: 276, historyFee: 253, docs: [2, 5] }),
   ]);
@@ -36,14 +36,14 @@ it("the price batch: only the extraction fee moved, +9.1%", () => {
 });
 
 it("an announced price makes the fee finding INFO, so the batch passes", () => {
-  const r = runChecks(checkDocs(V1, BATCHES.price()), HISTORY, [{ procedure: "extraction", newFee: 276 }]);
+  const r = runChecks(checkDocs(V1, priceBatch("v1")), HISTORY, [{ procedure: "extraction", newFee: 276 }]);
   expect(r.passed).toBe(true);
   expect(r.findings[0]).toMatchObject({ severity: "INFO", explained: true });
   expect(r.findings[0].message).toMatch(/announced by the clinic$/);
 });
 
 it("an announced price with a different fee explains nothing", () => {
-  const r = runChecks(checkDocs(V1, BATCHES.price()), HISTORY, [{ procedure: "Extraction", newFee: 270 }]);
+  const r = runChecks(checkDocs(V1, priceBatch("v1")), HISTORY, [{ procedure: "Extraction", newFee: 270 }]);
   expect(r.passed).toBe(false);
 });
 
@@ -84,13 +84,13 @@ it("fees keep their printed basis when an invoice's line items do not add up (no
 });
 
 it("an announced price matches the procedure as whole words ('an extraction' → Extraction), not part of a word", () => {
-  expect(runChecks(checkDocs(V1, BATCHES.price()), HISTORY, [{ procedure: "an extraction", newFee: 276 }]).passed).toBe(true);
-  expect(runChecks(checkDocs(V1, BATCHES.price()), HISTORY, [{ procedure: "extract", newFee: 276 }]).passed).toBe(false);
+  expect(runChecks(checkDocs(V1, priceBatch("v1")), HISTORY, [{ procedure: "an extraction", newFee: 276 }]).passed).toBe(true);
+  expect(runChecks(checkDocs(V1, priceBatch("v1")), HISTORY, [{ procedure: "extract", newFee: 276 }]).passed).toBe(false);
 });
 
 it("an announced price explains a fee finding only if every changed invoice has exactly that fee", () => {
   // three extractions: 276.00, 276.00 (announced) and 310.50 (not announced); the median is still 276.00
-  const invs = [...BATCHES.price(), makeInvoice(407, "v1", "2026-11-02", { Extraction: 270 })];
+  const invs = [...priceBatch("v1"), makeInvoice(407, "v1", "2026-11-02", { Extraction: 270 })];
   const r = runChecks(checkDocs(V1, invs), HISTORY, [{ procedure: "Extraction", newFee: 276 }]);
   expect(r.passed).toBe(false);
   expect(r.findings.find((f) => f.check === "fee")).toMatchObject({ severity: "WARNING" });

@@ -67,8 +67,9 @@ export const BATCHES = {
   live: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(300 + k, k === 0 ? "v1" : "v2", k === 0 ? day(9, 30) : day(10, 2))),
   // After approval: new layout only, mid-October. With mapping v2 it loads with no incident.
   after: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(500 + k, "v2", day(10, 12 + k))),
-  // Real price rise: old layout, extraction $240 + GST (was $220 + GST)
-  price: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(400 + k, "v1", day(11, 2), { Extraction: 240 })),
+  // After the format change: new layout, 2 Nov, extraction $240 + GST (was $220 + GST), as the clinic's notice
+  // announced from 1 November. With mapping v2 it loads by itself: the price change is announced and dated.
+  price: () => [0, 1, 2, 3, 4].map((k) => makeInvoice(400 + k, "v2", day(11, 2), { Extraction: 240 })),
 };
 
 // ~2 months of past v1 invoices (20 per procedure), seeded straight into Postgres

@@ -81,7 +81,7 @@ describe.skipIf(!process.env.LIVE)("live agents", () => {
       labelSamples: labelSamples(BATCHES.price().map(sourceDoc)),
     });
     const { verified } = verifyPriceChanges(out.priceChanges, loadLocalNotices());
-    expect(verified.some((p) => / extraction /.test(` ${p.procedure.toLowerCase()} `) && p.newFee === 276)).toBe(true);
+    expect(verified.some((p) => / extraction /.test(` ${p.procedure.toLowerCase()} `) && p.newFee === 276 && p.effectiveFrom === "2026-11-01")).toBe(true);
   }, 120_000);
 
   it("investigator: the price notice does not explain the GST batch", async () => {

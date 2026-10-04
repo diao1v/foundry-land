@@ -10,10 +10,18 @@ change anything; they only suggest. Code checks every suggestion, and a person a
   it is. It can raise the severity code gave, but never lower it.
 - **Investigator: why did it change?** It searches the provider's notices in AI Search and answers with
   quotes. Code checks that every quote appears word for word in the notice it cites. A quote that isn't
-  there is thrown out. For a price change, the quote must also name the procedure and the new fee.
+  there is thrown out. For a price change, the quote must also name the procedure, the new fee and the
+  date the new fee starts.
 - **Fix proposer: how do we fix it?** It proposes up to 5 changes to the mapping, using only three kinds of
   operation: accept another label for a field, add a new field, or compute a field from other fields (for
   example total = total + GST).
+
+## When a person is not needed
+
+An announced price change is the one case that loads without a person. Code must verify all of it: the quote
+is word for word in the provider's notice, it names the procedure, the new fee and the start date, the fee on
+the invoices matches, and every affected invoice is dated on or after that start date. If any part fails, a
+person decides. A format change always goes to a person.
 
 ## The dry run
 

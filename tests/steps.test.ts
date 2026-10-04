@@ -89,3 +89,13 @@ it("load as is: the fix step is not needed when only announced price changes are
   expect(s[3]).toMatchObject({ status: "skipped", summary: "Not needed — price change announced" });
   expect(s[4]).toMatchObject({ status: "waiting", summary: "Waiting for you" });
 });
+
+it("an announced, correctly dated price change: fix not needed, loaded without a person", () => {
+  const s = batchSteps({
+    ...base,
+    state: "LOADED",
+    events: [{ actor: "system", action: "batch.loaded", details: { announcedPriceChanges: [{ procedure: "Extraction", newFee: 276 }] } }],
+  });
+  expect(s[3]).toMatchObject({ status: "skipped", summary: "Not needed — price change announced" });
+  expect(s[4]).toMatchObject({ status: "skipped", summary: "Loaded automatically — price change announced" });
+});

@@ -23,6 +23,7 @@ const PriceChangeSchema = z.object({
   newFee: z.number(), // the announced fee, on the same basis as the invoice fee (incl. GST for the old layout)
   docId: z.string(),
   quote: z.string(),
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null), // the date the new fee starts, if the notice says
 });
 export type PriceChange = z.infer<typeof PriceChangeSchema>;
 

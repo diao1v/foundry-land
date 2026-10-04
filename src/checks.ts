@@ -159,3 +159,17 @@ export function runChecks(docs: CheckDoc[], history: History, explained: Explain
     stats: { invoices: docs.length, avgTotal, historyAvgTotal: history.avgTotal, historyCount: history.count },
   };
 }
+
+// Invoices with an announced procedure whose service date is before the change starts (or unknown).
+// ISO dates (YYYY-MM-DD) compare as strings.
+export function datedBeforeChange(docs: CheckDoc[], changes: { procedure: string; effectiveFrom: string | null }[]): string[] {
+  const early = new Set<string>();
+  for (const d of docs) {
+    const date = d.mapped.values.service_date ?? d.mapped.values.invoice_date ?? "";
+    for (const c of changes) {
+      const affected = (d.lineItems ?? []).some((l) => sameProcedure(c.procedure, procedureKey(l.description)));
+      if (affected && (!c.effectiveFrom || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < c.effectiveFrom)) early.add(d.mapped.values.invoice_no ?? String(d.documentId));
+    }
+  }
+  return [...early].sort();
+}

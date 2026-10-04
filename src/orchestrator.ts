@@ -4,7 +4,7 @@ import { verifyCitations, verifyPriceChanges } from "./agents/citations";
 import type { DriftReport, FixProposal, Investigation, VerifiedInvestigation } from "./agents/schemas";
 import { audit, transition } from "./audit";
 import type { ExtractedDoc } from "./azure/docint";
-import { basisFees, maxSeverity, procedureKey, runChecks, type CheckDoc, type CheckReport, type History } from "./checks";
+import { basisFees, datedBeforeChange, maxSeverity, procedureKey, runChecks, type CheckDoc, type CheckReport, type History } from "./checks";
 import type { Db } from "./db/client";
 import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { applyFix, dryRun, FixRejected } from "./fix";
@@ -197,11 +197,24 @@ async function runIncident(
     verifiedPriceChanges: investigation.verifiedPriceChanges?.length ?? 0,
   });
 
-  // 3a. Only announced price changes left? Then there is nothing to fix: a person decides to load as is.
+  // 3a. Only announced price changes left? Then there is nothing to fix.
+  // Every invoice dated on or after the announced start date: load it, no person needed.
+  // Otherwise (dated too early, or no start date in the notice) a person decides to load as is.
   const hist = await history(db, batchId);
-  const explained = (investigation.verifiedPriceChanges ?? []).map(({ procedure, newFee }) => ({ procedure, newFee }));
-  if (explained.length && runChecks(mapDocs(current.mapping, docs), hist, explained).passed) {
-    await transition(db, batchId, "AWAITING_REVIEW", SYSTEM, "review.requested", { loadAsIs: true, priceChanges: explained });
+  const verifiedPrices = investigation.verifiedPriceChanges ?? [];
+  const explained = verifiedPrices.map(({ procedure, newFee }) => ({ procedure, newFee }));
+  const mappedNow = mapDocs(current.mapping, docs);
+  if (explained.length && runChecks(mappedNow, hist, explained).passed) {
+    const early = datedBeforeChange(mappedNow, verifiedPrices);
+    if (!early.length) {
+      await loadInvoices(db, batchId, current.version, mappedNow);
+      await transition(db, batchId, "LOADED", SYSTEM, "batch.loaded", {
+        invoices: mappedNow.length,
+        announcedPriceChanges: verifiedPrices.map(({ procedure, newFee, effectiveFrom, quote, docId }) => ({ procedure, newFee, effectiveFrom, quote, docId })),
+      });
+      return;
+    }
+    await transition(db, batchId, "AWAITING_REVIEW", SYSTEM, "review.requested", { loadAsIs: true, priceChanges: explained, datedBeforeChange: early });
     await deps
       .notifyReview(batchId)
       .catch((e) => audit(db, { batchId, actor: SYSTEM, action: "notify.failed", details: { error: String(e) } }));
