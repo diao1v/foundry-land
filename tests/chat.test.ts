@@ -102,3 +102,11 @@ it("gives up after the deadline with the friendly 503", async () => {
   expect(res.status).toBe(503);
   expect(await res.json()).toEqual({ error: "The project guide isn't available right now. Try again in a minute." });
 });
+
+// Easter egg: an off-topic question gets a panda instead of a bare "I don't know"
+it("marks an off-topic answer (no sources, 'I don't know from the project docs')", async () => {
+  const off = await ask(app({ ask: async () => ({ answer: "I don't know from the project docs.", sources: [] }) }), { messages: [user("What's the capital of France?")] });
+  expect(await off.json()).toMatchObject({ offTopic: true, sources: [] });
+  const on = await ask(app({ ask: async () => ({ answer: "It retries.", sources: [{ docId: "x", quote: REAL }] }) }), { messages: [user("What if an agent fails?")] });
+  expect((await on.json()).offTopic).toBeUndefined();
+});

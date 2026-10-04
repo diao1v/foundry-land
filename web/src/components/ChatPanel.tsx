@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type ChatReply, postJsonFor } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PandaFace } from "./Panda";
 
-type Msg = { role: "user" | "assistant"; content: string; sources?: ChatReply["sources"]; error?: boolean };
+type Msg = { role: "user" | "assistant"; content: string; sources?: ChatReply["sources"]; error?: boolean; offTopic?: boolean };
 type Rect = { x: number; y: number; w: number; h: number };
 const SUGGESTED = ["How do the Azure services fit together?", "What stops the agents making things up?", "What happens when an agent fails?"];
 const SMALL = { w: 380, h: 520 };
@@ -105,7 +106,7 @@ export function ChatPanel() {
       // the earlier turns go along, so follow-up questions make sense; errors are not sent back
       const history = next.filter((m) => !m.error).slice(-6).map(({ role, content }) => ({ role, content }));
       const r = await postJsonFor<ChatReply>("/api/chat", { messages: history });
-      setMsgs([...next, { role: "assistant", content: r.answer, sources: r.sources }]);
+      setMsgs([...next, { role: "assistant", content: r.answer, sources: r.sources, offTopic: r.offTopic }]);
     } catch (e) {
       // fetch throws a TypeError when the server can't be reached at all
       const text = e instanceof TypeError ? "Can't reach the server. Check your connection and try again." : (e as Error).message;
@@ -153,7 +154,19 @@ export function ChatPanel() {
         )}
         {msgs.map((m, i) => (
           <div key={i} className={cn("max-w-[90%] rounded-xl px-3 py-2", m.role === "user" ? "ml-auto bg-navy text-white" : m.error ? "bg-warn-soft text-navy" : "bg-muted")}>
-            <p className="whitespace-pre-wrap">{m.content}</p>
+            {m.offTopic ? (
+              <div className="flex items-start gap-3">
+                <PandaFace size={40} />
+                <div className="space-y-1.5">
+                  <p>That's outside the project docs. I only know about foundry-land.</p>
+                  <button type="button" onClick={() => send(SUGGESTED[0])} disabled={busy} className="rounded-full border bg-card px-2.5 py-0.5 text-[12.5px] hover:bg-muted">
+                    Try: {SUGGESTED[0]}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap">{m.content}</p>
+            )}
             {!!m.sources?.length && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {m.sources.map((s, j) => (

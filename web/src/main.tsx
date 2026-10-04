@@ -7,6 +7,22 @@ import { BatchList } from "@/pages/BatchList";
 import { BatchReview } from "@/pages/BatchReview";
 import { DocumentView } from "@/pages/DocumentView";
 
+// for the curious engineer who opens the console
+console.log(
+  [
+    "%c",
+    "  ▄▄▄        ▄▄▄",
+    " █████▄▄▄▄▄▄█████",
+    " ██            ██",
+    " █  ▄██    ██▄  █     hi, curious engineer 🐼",
+    " █  ▀█▀    ▀█▀  █     ask the chat something off-topic",
+    " █      ▄▄      █",
+    "  ▀▄    ▀▀    ▄▀",
+    "    ▀▀▀▀▀▀▀▀▀▀",
+  ].join("\n"),
+  "font: 12px/1.15 monospace; color: #0b1b33",
+);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>

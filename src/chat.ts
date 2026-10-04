@@ -18,7 +18,8 @@ export type ChatGuide = {
   docs(): Promise<Notice[]>;
   deadlineMs?: number; // whole answer, default 60 s: a hung agent must not keep the visitor waiting for minutes
 };
-export type ChatReply = { answer: string; sources: { docId: string; title: string; quote: string }[] };
+export type ChatReply = { answer: string; sources: { docId: string; title: string; quote: string }[]; offTopic?: true };
+const DONT_KNOW = /^i don.t know from the project docs/i;
 export const GUIDE_DOWN = "The project guide isn't available right now. Try again in a minute.";
 
 // The docs are markdown; agents quote the words without list markers, "**" or "`". Compare words only.
@@ -51,8 +52,8 @@ async function answer(req: ChatRequest, guide: ChatGuide): Promise<ChatReply> {
   const docs = await guide.docs();
   const { verified, rejected } = verifySources(reply.sources, docs);
   if (rejected.length) console.warn(`chat: dropped ${rejected.length} unverified source(s)`);
-  return {
-    answer: cleanMarkers(reply.answer),
-    sources: verified.map((s) => ({ ...s, title: docs.find((d) => d.id === s.docId)?.title ?? s.docId })), // quote shown without markdown
-  };
+  const answer = cleanMarkers(reply.answer);
+  const sources = verified.map((s) => ({ ...s, title: docs.find((d) => d.id === s.docId)?.title ?? s.docId })); // quote shown without markdown
+  // off-topic: the web app answers with a panda instead of a bare "I don't know"
+  return !sources.length && DONT_KNOW.test(answer) ? { answer, sources, offTopic: true } : { answer, sources };
 }
