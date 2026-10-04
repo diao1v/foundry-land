@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router";
 import { DecisionCard } from "@/components/DecisionCard";
 import { NotFound, Shell } from "@/components/Shell";
@@ -21,22 +21,30 @@ const TAG: Record<string, [string, string]> = {
   ESCALATED: ["Needs a person", "bg-warn-soft text-[#8A5A00]"],
 };
 
-// While running: follow the newest running step. Once finished: start of the story.
+// Chosen once, when the page opens: the step running at that moment, or the start of the story.
+// It doesn't follow the run afterwards, so a finished step stays on screen until you pick another tab.
 export function openingTab(d: BatchDetail) {
   return STILL_RUNNING(d) ? (d.steps.find((s) => s.status === "running")?.key ?? "checks") : "checks";
 }
 
+// A new batch (e.g. after "Run again") gets its own page state: opening tab, picked tab, view
 export function BatchReview() {
   const { id } = useParams();
+  return <BatchPage key={id} id={id} />;
+}
+
+function BatchPage({ id }: { id?: string }) {
   const { data: d, error, refresh } = usePoll<BatchDetail>(`/api/batches/${id}`, STILL_RUNNING);
   const [picked, setPicked] = useState<string>();
+  const opened = useRef<string>(undefined);
   const [view, setView] = useState("data");
 
   if (error instanceof HttpError && error.status === 404)
     return <Shell crumbs={[{ label: "Batches", to: "/" }]}><NotFound what="Batch" /></Shell>;
   if (!d) return <Shell crumbs={[{ label: "Batches", to: "/" }]} error={error}><p className="text-muted-foreground">Loading…</p></Shell>;
 
-  const tab = picked ?? openingTab(d);
+  opened.current ??= openingTab(d);
+  const tab = picked ?? opened.current;
   const working = CODE_STATES.includes(d.batch.state) ? "Checks running" : "Agents working"; // no agent runs before the checks fail
   const [tagText, tagClass] = d.decision.state === "rerun" ? ["Run again", TAG.CLOSED[1]] : (TAG[d.batch.state] ?? [working, "bg-[#E3E9F2] text-navy"]);
   return (
