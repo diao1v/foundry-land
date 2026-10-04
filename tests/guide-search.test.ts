@@ -15,7 +15,15 @@ it("makes the project guide search before it answers", async () => {
   expect(bodies(fetch)[0].tool_choice).toBe("required");
 });
 
-it("leaves the other agents free to choose", async () => {
+// Seen live: the investigator answered "no notice explains it" without searching (3.5 s, no tool call)
+it("makes the investigator search before it answers", async () => {
+  const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+    reply('{"explanationFound":false,"explanation":"x","citations":[],"unexplained":[],"priceChanges":[]}'));
+  await makeAgents({ FOUNDRY_PROJECT_ENDPOINT: "https://f.example.com" }).investigate({});
+  expect(bodies(fetch)[0].tool_choice).toBe("required");
+});
+
+it("leaves the agents without a search tool free to choose", async () => {
   const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => reply('{"findings":[],"severity":"INFO","impact":"none"}'));
   await makeAgents({ FOUNDRY_PROJECT_ENDPOINT: "https://f.example.com" }).drift({});
   expect(bodies(fetch)[0].tool_choice).toBeUndefined();
