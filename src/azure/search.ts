@@ -3,16 +3,16 @@ import type { Config } from "../config";
 import { tokenFor } from "./auth";
 
 const searchToken = tokenFor("https://search.azure.com/.default");
-const INDEX = {
-  name: "notices",
+const indexDef = (name: string) => ({
+  name,
   fields: [
     { name: "id", type: "Edm.String", key: true, filterable: true },
     { name: "title", type: "Edm.String", searchable: true },
     { name: "content", type: "Edm.String", searchable: true },
   ],
-};
+});
 
-export function makeSearch(cfg: Pick<Config, "SEARCH_ENDPOINT" | "SEARCH_ADMIN_KEY">) {
+export function makeSearch(cfg: Pick<Config, "SEARCH_ENDPOINT" | "SEARCH_ADMIN_KEY">, index = "notices") {
   const base = cfg.SEARCH_ENDPOINT.replace(/\/$/, "");
   const call = async (method: string, path: string, body?: unknown) => {
     const auth: Record<string, string> = cfg.SEARCH_ADMIN_KEY
@@ -29,13 +29,13 @@ export function makeSearch(cfg: Pick<Config, "SEARCH_ENDPOINT" | "SEARCH_ADMIN_K
     return text ? JSON.parse(text) : null;
   };
   return {
-    createIndex: () => call("PUT", "indexes/notices", INDEX),
+    createIndex: () => call("PUT", `indexes/${index}`, indexDef(index)),
     upsert: (docs: Notice[]) =>
-      call("POST", "indexes/notices/docs/index", { value: docs.map((d) => ({ "@search.action": "mergeOrUpload", ...d })) }),
+      call("POST", `indexes/${index}/docs/index`, { value: docs.map((d) => ({ "@search.action": "mergeOrUpload", ...d })) }),
     remove: (ids: string[]) =>
-      call("POST", "indexes/notices/docs/index", { value: ids.map((id) => ({ "@search.action": "delete", id })) }),
+      call("POST", `indexes/${index}/docs/index`, { value: ids.map((id) => ({ "@search.action": "delete", id })) }),
     all: async () =>
-      (await call("POST", "indexes/notices/docs/search", { search: "*", select: "id,title,content", top: 50 })).value as Notice[],
+      (await call("POST", `indexes/${index}/docs/search`, { search: "*", select: "id,title,content", top: 50 })).value as Notice[],
   };
 }
 export type Search = ReturnType<typeof makeSearch>;

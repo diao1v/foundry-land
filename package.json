@@ -14,6 +14,7 @@
     "reset-demo": "tsx --env-file=.env scripts/reset-demo.ts",
     "data": "tsx scripts/generate-data.ts",
     "notices": "tsx --env-file=.env scripts/notices.ts",
+    "project-docs": "tsx --env-file=.env scripts/project-docs.ts",
     "smoke": "tsx --env-file=.env scripts/smoke-azure.ts",
     "agents:setup": "tsx --env-file=.env scripts/setup-agents.ts",
     "upload": "tsx --env-file=.env scripts/upload-batch.ts",
