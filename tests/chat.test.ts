@@ -71,3 +71,13 @@ it("returns the same 503 when the docs can't be loaded for the check", async () 
 it("has no chat route when the chat isn't configured", async () => {
   expect((await ask(app(), { messages: [user("hi")] })).status).toBe(404);
 });
+
+// Seen live: the agent quotes bullet points without the markdown "- " markers, and bold text without "**"
+it("accepts a quote that spans markdown bullets or bold text, word for word", async () => {
+  const docs: Notice[] = [{ id: "a", title: "A", content: "# A\n\n- **Loud:** a label is renamed.\n- Network errors are retried a few times.\n" }];
+  const res = await ask(app({
+    docs: async () => docs,
+    ask: async () => ({ answer: "ok", sources: [{ docId: "A", quote: "Loud: a label is renamed.\n\nNetwork errors are retried a few times." }] }),
+  }), { messages: [user("hi")] });
+  expect((await res.json()).sources.map((s: { docId: string }) => s.docId)).toEqual(["a"]);
+});

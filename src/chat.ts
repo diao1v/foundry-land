@@ -16,14 +16,25 @@ export type ChatGuide = {
 export type ChatReply = { answer: string; sources: { docId: string; title: string; quote: string }[] };
 export const GUIDE_DOWN = "The project guide isn't available right now. Try again in a minute.";
 
+// The docs are markdown; agents quote the words without list markers, "**" or "`". Compare words only.
+const plain = (md: string) =>
+  md.replace(/^\s*(#+|[-*]|\d+\.)\s+/gm, "").replace(/\*\*|`/g, "");
+
+// Keep only sources whose quote is in the docs, word for word (markdown ignored)
+export const verifySources = (sources: ProjectAnswer["sources"], docs: Notice[]) =>
+  verifyCitations(
+    sources.map((src) => ({ ...src, quote: plain(src.quote) })),
+    docs.map((d) => ({ ...d, content: plain(d.content) })),
+  );
+
 export async function answerChat(req: ChatRequest, guide: ChatGuide): Promise<ChatReply> {
   const history = req.messages.slice(0, -1); // earlier turns, so follow-up questions make sense
   const reply = await guide.ask({ question: req.messages.at(-1)!.content, history });
   const docs = await guide.docs();
-  const { verified, rejected } = verifyCitations(reply.sources, docs);
+  const { verified, rejected } = verifySources(reply.sources, docs);
   if (rejected.length) console.warn(`chat: dropped ${rejected.length} unverified source(s)`);
   return {
     answer: cleanMarkers(reply.answer),
-    sources: verified.map((s) => ({ ...s, title: docs.find((d) => d.id === s.docId)?.title ?? s.docId })),
+    sources: verified.map((s) => ({ ...s, title: docs.find((d) => d.id === s.docId)?.title ?? s.docId })), // quote shown without markdown
   };
 }

@@ -6,7 +6,8 @@ import { makeSearch } from "../../src/azure/search";
 import { runChecks } from "../../src/checks";
 import { loadConfig } from "../../src/config";
 import { BATCHES } from "../../src/demo/invoice-data";
-import { LETTER_ID, loadLocalNotices } from "../../src/demo/notices";
+import { LETTER_ID, loadLocalNotices, loadProjectDocs } from "../../src/demo/notices";
+import { verifySources } from "../../src/chat";
 import { applyFix, dryRun } from "../../src/fix";
 import { applyMapping, labelSamples, REQUIRED_FIELDS, type Mapping, type SourceDoc } from "../../src/mapping/mapping";
 import { DRIFT, GOOD_FIX, HISTORY, INVESTIGATION, sourceDoc, V1 } from "../fixtures";
@@ -106,4 +107,15 @@ describe.skipIf(!process.env.LIVE)("live agents", () => {
     }
     throw new Error(`no passing fix in 3 rounds: ${JSON.stringify(previousRounds)}`);
   }, 360_000);
+
+  it("project guide: answers 'what happens when an agent fails?' with a verified source from the agents doc", async () => {
+    const r = await agents.guide({ question: "What happens when an agent fails?", history: [] });
+    const { verified } = verifySources(r.sources, loadProjectDocs());
+    expect(verified.some((s) => s.docId === "agents-and-guardrails")).toBe(true);
+  }, 120_000);
+
+  it("project guide: no verified sources for an off-topic question", async () => {
+    const r = await agents.guide({ question: "What is the capital of France?", history: [] });
+    expect(verifySources(r.sources, loadProjectDocs()).verified).toEqual([]);
+  }, 120_000);
 });

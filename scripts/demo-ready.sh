@@ -42,8 +42,9 @@ image=$(az containerapp show -n $APP -g $RG --query "properties.template.contain
 [ "$(az containerapp show -n $APP -g $RG --query properties.runningStatus -o tsv 2>/dev/null)" = "Running" ] || fail "Container App is not running"
 ok "Container App running"
 
-echo "4. Clinic notices in AI Search"
+echo "4. Clinic notices and project docs in AI Search"
 pnpm --silent notices | tail -1 | sed 's/^/  ✓ /'
+pnpm --silent project-docs | tail -1 | sed 's/^/  ✓ /'
 
 echo "5. Wiring"
 sub_state=$(az eventgrid system-topic event-subscription show -g $RG --system-topic-name evgt-foundry-land -n batch-ready --query provisioningState -o tsv 2>/dev/null || echo missing)
@@ -74,6 +75,10 @@ if [ "$FULL" = 1 ]; then
   sleep 10
   run=$(az rest --method get --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Logic/workflows/$LOGIC/runs?api-version=2019-05-01&\$top=1" --query "value[0].properties.[startTime,status]" -o tsv | tr '\n' ' ')
   [[ "$run" > "$start" && "$run" == *Succeeded* ]] && ok "review email sent (check your inbox)" || warn "no successful email run since $start ($run)"
+  chat=$(curl -sf -u "demo:$DEMO_PASSWORD" -H 'Content-Type: application/json' \
+    -d '{"messages":[{"role":"user","content":"What happens when an agent fails?"}]}' "$URL/api/chat" \
+    | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["sources"]))' || echo 0)
+  [ "$chat" -gt 0 ] && ok "project chat answers with $chat verified source(s)" || warn "project chat gave no verified sources"
 fi
 
 echo "$([ "$FULL" = 1 ] && echo 7 || echo 6). Reset the demo data"
