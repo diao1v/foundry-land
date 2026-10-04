@@ -79,6 +79,7 @@ describe.skipIf(!process.env.LIVE)("live agents", () => {
     const out = await agents.investigate({
       findings: [{ kind: "price_change", field: null, labels: [], evidence: 'Fee for "Extraction" 276.00 is 9.1% vs history 253.00 (20 invoices)' }],
       labelSamples: labelSamples(BATCHES.price().map(sourceDoc)),
+      invoiceDates: { earliest: "2026-11-02", latest: "2026-11-02" },
     });
     const { verified } = verifyPriceChanges(out.priceChanges, loadLocalNotices());
     expect(verified.some((p) => / extraction /.test(` ${p.procedure.toLowerCase()} `) && p.newFee === 276 && p.effectiveFrom === "2026-11-01")).toBe(true);
@@ -86,7 +87,9 @@ describe.skipIf(!process.env.LIVE)("live agents", () => {
 
   it("investigator: the price notice does not explain the GST batch", async () => {
     const docs = demoDocs();
-    const out = await agents.investigate({ findings: DRIFT.findings, labelSamples: labelSamples(docs) });
+    const out = await agents.investigate({ findings: DRIFT.findings, labelSamples: labelSamples(docs), invoiceDates: { earliest: "2026-09-29", latest: "2026-10-08" } });
+    // the notice starts 1 November, after every invoice: the agent should not report it at all
+    expect(out.priceChanges.filter((p) => /extraction/i.test(p.procedure))).toEqual([]);
     const explained = verifyPriceChanges(out.priceChanges, loadLocalNotices()).verified.map(({ procedure, newFee }) => ({ procedure, newFee }));
     const mapped = docs.map((d) => ({ documentId: d.documentId, mapped: applyMapping(V1, d.fields), lineItemsTotal: d.lineItemsTotal, lineItems: d.lineItems }));
     expect(runChecks(mapped, HISTORY, explained).passed).toBe(false);

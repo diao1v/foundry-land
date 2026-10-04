@@ -156,6 +156,12 @@ const noFixExpected = async () => {
 // after the format change was approved: mapping v2 reads the new layout
 const withMappingV2 = () => db.insert(mappingVersions).values({ version: 2, mapping: applyFix(V1, GOOD_FIX), createdBy: "test", reason: "format change" });
 
+it("gives the investigator the batch's invoice dates, so it can skip notices that start later", async () => {
+  let seen: unknown;
+  await run("demo", BATCHES.demo(), { investigate: async (input) => { seen = input; return INVESTIGATION; } });
+  expect(seen).toMatchObject({ invoiceDates: { earliest: "2026-09-29", latest: "2026-10-08" } });
+});
+
 it("a new-layout price batch whose fee change the clinic announced loads by itself", async () => {
   await withMappingV2();
   let notified = 0;

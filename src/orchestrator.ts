@@ -173,7 +173,13 @@ async function runIncident(
   // 2. Investigator — every quote is checked against the notices
   let investigation: VerifiedInvestigation;
   try {
-    const raw = await deps.investigate({ findings: drift.findings, labelSamples: samples });
+    // the batch's date range, so the investigator can skip notices that start after these invoices
+    const dates = mapDocs(current.mapping, docs)
+      .map((d) => d.mapped.values.service_date ?? d.mapped.values.invoice_date ?? "")
+      .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x))
+      .sort();
+    const invoiceDates = dates.length ? { earliest: dates[0], latest: dates.at(-1)! } : null;
+    const raw = await deps.investigate({ findings: drift.findings, labelSamples: samples, invoiceDates });
     const notices = await deps.notices();
     const { verified, rejected } = verifyCitations(raw.citations, notices);
     const quoted = verifyPriceChanges(raw.priceChanges ?? [], notices);
