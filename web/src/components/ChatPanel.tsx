@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type ChatReply, postJsonFor } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { PandaFace } from "./Panda";
 
 type Msg = { role: "user" | "assistant"; content: string; sources?: ChatReply["sources"]; error?: boolean; offTopic?: boolean };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -154,19 +153,7 @@ export function ChatPanel() {
         )}
         {msgs.map((m, i) => (
           <div key={i} className={cn("max-w-[90%] rounded-xl px-3 py-2", m.role === "user" ? "ml-auto bg-navy text-white" : m.error ? "bg-warn-soft text-navy" : "bg-muted")}>
-            {m.offTopic ? (
-              <div className="flex items-start gap-3">
-                <PandaFace size={40} />
-                <div className="space-y-1.5">
-                  <p>That's outside the project docs. I only know about foundry-land.</p>
-                  <button type="button" onClick={() => send(SUGGESTED[0])} disabled={busy} className="rounded-full border bg-card px-2.5 py-0.5 text-[12.5px] hover:bg-muted">
-                    Try: {SUGGESTED[0]}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="whitespace-pre-wrap">{m.content}</p>
-            )}
+            <p className="whitespace-pre-wrap">{m.offTopic ? "Panda!" : m.content}</p>
             {!!m.sources?.length && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {m.sources.map((s, j) => (
