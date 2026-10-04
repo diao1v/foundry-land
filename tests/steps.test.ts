@@ -56,8 +56,8 @@ it("waiting for review", () => {
 
 it("approved and rejected name the person", () => {
   const common = { ...base, codeSeverity: "BREAKING" as const, drift: DRIFT, investigation: verified, proposals: [{ round: 1, passed: true }] };
-  expect(batchSteps({ ...common, state: "RELOADED", events: [ev("checks.failed"), ev("review.approved", "human:yiwei")] })[4])
-    .toMatchObject({ status: "done", summary: "Approved by yiwei" });
+  expect(batchSteps({ ...common, state: "RELOADED", events: [ev("checks.failed"), ev("review.approved", "human:reviewer")] })[4])
+    .toMatchObject({ status: "done", summary: "Approved by reviewer" });
   expect(batchSteps({ ...common, state: "CLOSED", events: [ev("checks.failed"), ev("review.rejected", "human:sam")] })[4])
     .toMatchObject({ status: "done", summary: "Rejected by sam" });
 });

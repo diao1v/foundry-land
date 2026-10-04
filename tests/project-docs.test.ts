@@ -17,7 +17,7 @@ it("loads the six project docs, whole, with their titles", () => {
 
 it("keeps the project docs public-safe", () => {
   const text = loadProjectDocs().map((d) => d.content).join("\n").toLowerCase();
-  for (const word of ["interview", "southern cross", "pageproof", "yiwei", "azurecontainerapps.io", "pnpm ", "az "]) {
+  for (const word of ["interview", "southern cross", "pageproof", "azurecontainerapps.io", "pnpm ", "az "]) {
     expect(text, word).not.toContain(word);
   }
 });

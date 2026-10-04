@@ -72,8 +72,8 @@ it("serves the list, detail and document JSON, and 404 for unknown ids", async (
 it("approves with JSON once; a second approval answers 409 with a message", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
   const a = app(d);
-  expect((await a.request(`/api/batches/${id}/approve`, json({ reviewer: "yiwei" }))).status).toBe(200);
-  const again = await a.request(`/api/batches/${id}/approve`, json({ reviewer: "yiwei" }));
+  expect((await a.request(`/api/batches/${id}/approve`, json({ reviewer: "reviewer" }))).status).toBe(200);
+  const again = await a.request(`/api/batches/${id}/approve`, json({ reviewer: "reviewer" }));
   expect(again.status).toBe(409);
   expect((await again.json()).error).toMatch(/not AWAITING_REVIEW/);
   expect(await db.$count(mappingVersions)).toBe(2);
@@ -82,8 +82,8 @@ it("approves with JSON once; a second approval answers 409 with a message", asyn
 it("rejects with JSON; a missing reason answers 400", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
   const a = app(d);
-  expect((await a.request(`/api/batches/${id}/reject`, json({ reviewer: "yiwei" }))).status).toBe(400);
-  expect((await a.request(`/api/batches/${id}/reject`, json({ reviewer: "yiwei", reason: "wrong provider" }))).status).toBe(200);
+  expect((await a.request(`/api/batches/${id}/reject`, json({ reviewer: "reviewer" }))).status).toBe(400);
+  expect((await a.request(`/api/batches/${id}/reject`, json({ reviewer: "reviewer", reason: "wrong provider" }))).status).toBe(200);
   expect((await db.select().from(batches).where(eq(batches.id, id)))[0].state).toBe("CLOSED");
 });
 
@@ -98,7 +98,7 @@ it("two approvals at the same moment: one succeeds, the other gets a clear 409, 
   const { id, d } = await runBatch("demo", BATCHES.demo());
   const a = app(d);
   const [r1, r2] = await Promise.all([
-    a.request(`/api/batches/${id}/approve`, json({ reviewer: "yiwei" })),
+    a.request(`/api/batches/${id}/approve`, json({ reviewer: "reviewer" })),
     a.request(`/api/batches/${id}/approve`, json({ reviewer: "sam" })),
   ]);
   expect([r1.status, r2.status].sort()).toEqual([200, 409]);

@@ -31,7 +31,7 @@ it("lists batches with a summary and averages vs history", async () => {
 
 it("shows the reloaded average after approval", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   const [row] = (await listBatches(db)).batches;
   expect(row).toMatchObject({ state: "RELOADED", avgTotal: 224.25 });
 });
@@ -53,10 +53,10 @@ it("batch detail: steps, decision, proposals and flagged invoices", async () => 
 
 it("batch detail after approval reports who decided and the result", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   const r = (await batchDetail(db, id))!;
   expect(r.decision).toMatchObject({
-    state: "approved", by: "yiwei",
+    state: "approved", by: "reviewer",
     result: { from: 1, to: 2, invoices: 10, avgTotal: 224.25 },
   });
 });
@@ -116,7 +116,7 @@ it("falls back to the batch mapping when no proposal passed", async () => {
 
 it("document view after approval: no note, because mapping v2 computes total from total + gst", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   const r = (await documentView(db, await docId("INV-10202.pdf"), "batch"))!;
   expect(r.mapping.version).toBe(2);
   expect(r.derived).toEqual([{ field: "total", expression: "total + gst", value: "126.50" }]);
@@ -144,7 +144,7 @@ it("loaded data: rows for a loaded batch, none while held for review", async () 
 
 it("after approval: reloaded rows show PDF total vs loaded total, and the mapping change v1 → v2", async () => {
   const { id, d } = await runBatch("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   const r = (await batchDetail(db, id))!;
   expect(r.loaded).toHaveLength(10);
   expect(r.loaded.find((x) => x.invoiceNo === "INV-10202")).toMatchObject({
@@ -170,9 +170,9 @@ it("price batch: waiting decision is load-as-is with the announced change; after
     loadAsIs: [{ procedure: "Extraction", historyFee: 253, fee: 276, docId: "price-update-example-dental" }],
   });
   expect(before.decision.proposal).toBeUndefined();
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   const after = (await batchDetail(db, id))!;
-  expect(after.decision).toMatchObject({ state: "approved", by: "yiwei", result: { from: 1, to: 1, invoices: 5, mappingChanges: [] } });
+  expect(after.decision).toMatchObject({ state: "approved", by: "reviewer", result: { from: 1, to: 1, invoices: 5, mappingChanges: [] } });
   expect(after.decision.loadAsIs).toHaveLength(1);
 });
 
@@ -190,7 +190,7 @@ it("loaded rows list their procedures: as printed and as loaded", async () => {
     { description: "X-ray", printed: 51.75, loaded: 51.75 },
   ]);
   const { id, d } = await runBatch("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   const v2 = (await batchDetail(db, id))!.loaded.find((r) => r.invoiceNo === "INV-10202")!;
   expect(v2.lineItems).toEqual([
     { description: "General inspection", printed: 65, loaded: 74.75 },

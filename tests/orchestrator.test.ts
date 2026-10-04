@@ -43,7 +43,7 @@ it("stops the demo batch, dry-runs a fix and waits for review", async () => {
 
 it("approve creates mapping v2 and reloads with GST-inclusive totals", async () => {
   const { id, d } = await run("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   expect(await stateOf(id)).toBe("RELOADED");
   expect((await db.select().from(mappingVersions)).map((v) => v.version)).toEqual([1, 2]);
   const rows = await db.select().from(invoices).where(eq(invoices.batchId, id));
@@ -55,8 +55,8 @@ it("approve creates mapping v2 and reloads with GST-inclusive totals", async () 
 
 it("refuses a second approval", async () => {
   const { id, d } = await run("demo", BATCHES.demo());
-  await approve(d, id, "yiwei");
-  await expect(approve(d, id, "yiwei")).rejects.toThrow(/not AWAITING_REVIEW/);
+  await approve(d, id, "reviewer");
+  await expect(approve(d, id, "reviewer")).rejects.toThrow(/not AWAITING_REVIEW/);
   expect(await db.$count(mappingVersions)).toBe(2);
 });
 
@@ -64,12 +64,12 @@ it("refuses approval when the mapping changed after the dry-run", async () => {
   const { id, d } = await run("demo", BATCHES.demo());
   const [v1] = await db.select().from(mappingVersions);
   await db.insert(mappingVersions).values({ version: 2, mapping: v1.mapping, createdBy: "test", reason: "other batch" });
-  await expect(approve(d, id, "yiwei")).rejects.toThrow(/Mapping changed/);
+  await expect(approve(d, id, "reviewer")).rejects.toThrow(/Mapping changed/);
 });
 
 it("reject closes the batch", async () => {
   const { id, d } = await run("demo", BATCHES.demo());
-  await reject(d, id, "yiwei", "wrong provider");
+  await reject(d, id, "reviewer", "wrong provider");
   expect(await stateOf(id)).toBe("CLOSED");
 });
 
@@ -164,7 +164,7 @@ it("a price batch with a verified notice goes to review as load-as-is, without t
 
 it("approving load-as-is loads with the current mapping and creates no mapping version", async () => {
   const { id, d } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
-  await approve(d, id, "yiwei");
+  await approve(d, id, "reviewer");
   expect(await stateOf(id)).toBe("RELOADED");
   expect((await db.select().from(mappingVersions)).map((v) => v.version)).toEqual([1]);
   const rows = await db.select().from(invoices).where(eq(invoices.batchId, id));
@@ -176,8 +176,8 @@ it("load-as-is is refused when the mapping changed since", async () => {
   const { id, d } = await run("price", BATCHES.price(), { investigate: priceInvestigation(), proposeFix: noFixExpected });
   const [v1] = await db.select().from(mappingVersions);
   await db.insert(mappingVersions).values({ version: 2, mapping: v1.mapping, createdBy: "test", reason: "other batch" });
-  await expect(approve(d, id, "yiwei")).rejects.toThrow(ReviewError);
-  await expect(approve(d, id, "yiwei")).rejects.toThrow(/Mapping changed/);
+  await expect(approve(d, id, "reviewer")).rejects.toThrow(ReviewError);
+  await expect(approve(d, id, "reviewer")).rejects.toThrow(/Mapping changed/);
 });
 
 it("a price notice with another fee does not explain the batch, so it goes through the fix loop", async () => {

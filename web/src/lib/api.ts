@@ -4,7 +4,7 @@ export type { BatchListResponse, BatchRow, Decision, DocumentView, LoadedRow } f
 export type BatchDetail = ServerBatchDetail & { foundryAgentUrls: AgentUrls };
 export type { Step, StepKey, StepStatus } from "../../../src/steps";
 
-export const REVIEWER = "yiwei"; // no login in the demo
+export const REVIEWER = "reviewer"; // no login in the demo
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
