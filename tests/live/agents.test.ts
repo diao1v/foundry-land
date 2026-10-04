@@ -57,10 +57,12 @@ describe.skipIf(!process.env.LIVE)("live agents", () => {
   }, 120_000);
 
   it("investigator: finds and quotes the provider letter", async () => {
-    const out = await agents.investigate({ findings: DRIFT.findings, labelSamples: labelSamples(demoDocs()) });
+    const out = await agents.investigate({ findings: DRIFT.findings, labelSamples: labelSamples(demoDocs()), invoiceDates: { earliest: "2026-09-29", latest: "2026-10-08" } });
     const { verified } = verifyCitations(out.citations, loadLocalNotices());
     expect(out.explanationFound).toBe(true);
     expect(verified.some((c) => c.docId === LETTER_ID)).toBe(true);
+    // seen live: the November price notice was cited for the October GST batch, to say it was ruled out
+    expect(verified.filter((c) => c.docId === "price-update-example-dental")).toEqual([]);
   }, 120_000);
 
   it("investigator: no letter → not explained (and the injected note is ignored)", async () => {
