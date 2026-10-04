@@ -1,10 +1,10 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { Notice } from "./agents/citations";
 import { verifyCitations, verifyPriceChanges } from "./agents/citations";
-import type { DriftReport, FixProposal, Investigation, VerifiedInvestigation } from "./agents/schemas";
+import type { DriftReport, FixProposal, Investigation, PriceChange, VerifiedInvestigation } from "./agents/schemas";
 import { audit, transition } from "./audit";
 import type { ExtractedDoc } from "./azure/docint";
-import { basisFees, datedBeforeChange, maxSeverity, procedureKey, runChecks, type CheckDoc, type CheckReport, type History } from "./checks";
+import { basisFees, datedBeforeChange, maxSeverity, procedureKey, runChecks, sameProcedure, type CheckDoc, type CheckReport, type History } from "./checks";
 import type { Db } from "./db/client";
 import { auditEvents, batches, documents, extractedFields, fixProposals, incidents, invoices, mappingVersions } from "./db/schema";
 import { applyFix, dryRun, FixRejected } from "./fix";
@@ -176,7 +176,24 @@ async function runIncident(
     const raw = await deps.investigate({ findings: drift.findings, labelSamples: samples });
     const notices = await deps.notices();
     const { verified, rejected } = verifyCitations(raw.citations, notices);
-    const prices = verifyPriceChanges(raw.priceChanges ?? [], notices);
+    const quoted = verifyPriceChanges(raw.priceChanges ?? [], notices);
+    // A real quote isn't enough: the announced fee must be the fee this batch actually charges for that procedure
+    const fees = report.findings.filter((f) => f.check === "fee" && f.procedure && f.fee != null);
+    const matches = (p: PriceChange) => fees.some((f) => sameProcedure(p.procedure, procedureKey(f.procedure!)) && Math.abs(f.fee! - p.newFee) <= 0.01);
+    const batchFee = (p: PriceChange) => fees.find((f) => sameProcedure(p.procedure, procedureKey(f.procedure!)))?.fee;
+    const notThisBatch = quoted.verified.filter((p) => !matches(p));
+    const prices = {
+      verified: quoted.verified.filter(matches),
+      rejected: [
+        ...quoted.rejected.map((p) => ({ ...p, reason: "The quote isn't in the notice, or doesn't name the procedure, the fee and the date" })),
+        ...notThisBatch.map((p) => ({
+          ...p,
+          reason: batchFee(p) == null
+            ? `This batch has no ${p.procedure} fee change`
+            : `This batch's ${p.procedure} fee is ${batchFee(p)!.toFixed(2)}, not the announced ${p.newFee.toFixed(2)}`,
+        })),
+      ],
+    };
     investigation = {
       ...raw,
       explanationFound: raw.explanationFound && verified.length > 0,

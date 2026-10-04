@@ -225,5 +225,12 @@ it("a price notice with another fee does not explain the batch, so it goes throu
 it("the GST batch is not explained by the extraction price notice", async () => {
   const { id } = await run("demo", BATCHES.demo(), { investigate: priceInvestigation() });
   expect(await stateOf(id)).toBe("AWAITING_REVIEW");
+  // Seen live: the notice was listed as a verified price change although this batch's extraction fee is
+  // 220.00 (GST taken out), not the announced 276.00. A real quote isn't enough; it must match the batch.
+  const [inc] = await db.select().from(incidents).where(eq(incidents.batchId, id));
+  expect(inc.investigation!.verifiedPriceChanges).toEqual([]);
+  expect(inc.investigation!.rejectedPriceChanges).toHaveLength(1);
+  const [ev] = await db.select().from(auditEvents).where(eq(auditEvents.action, "price_change.rejected"));
+  expect(ev.details).toMatchObject({ procedure: "Extraction", reason: "This batch's Extraction fee is 220.00, not the announced 276.00" });
   expect(await db.select().from(fixProposals)).toEqual([expect.objectContaining({ round: 1, passed: true })]);
 });
