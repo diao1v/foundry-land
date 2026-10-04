@@ -19,7 +19,7 @@ export function Shell({ crumbs, error, children }: { crumbs: Crumb[]; error?: Er
               </span>
             ))}
           </nav>
-          <span className="text-navy-muted">Synthetic data</span>
+          <a href="/architecture.html" target="_blank" rel="noreferrer" className="text-navy-muted hover:text-white hover:underline">Architecture view ↗</a>
         </div>
       </header>
       {offline && (
