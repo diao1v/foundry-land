@@ -81,3 +81,24 @@ it("accepts a quote that spans markdown bullets or bold text, word for word", as
   }), { messages: [user("hi")] });
   expect((await res.json()).sources.map((s: { docId: string }) => s.docId)).toEqual(["a"]);
 });
+
+// Review: a normal answer (~120 words) is longer than 500 characters and comes back as history
+it("accepts a follow-up after a long answer", async () => {
+  const seen = vi.fn(async () => ({ answer: "ok", sources: [] }));
+  const res = await ask(app({ ask: seen }), { messages: [user("How does it fit together?"), { role: "assistant", content: "x".repeat(1500) }, user("Why one replica?")] });
+  expect(res.status).toBe(200);
+  expect(seen).toHaveBeenCalled();
+});
+
+// Review: a hung agent must not keep the visitor waiting for minutes
+it("gives up after the deadline with the friendly 503", async () => {
+  const slow = makeApp(fakeDeps({}), {
+    eventSecret: "test-secret-123456",
+    pdf: async () => Buffer.from(""),
+    upload: async () => {},
+    chat: { ask: () => new Promise(() => {}), docs: async () => DOCS, deadlineMs: 50 },
+  });
+  const res = await ask(slow, { messages: [user("hi")] });
+  expect(res.status).toBe(503);
+  expect(await res.json()).toEqual({ error: "The project guide isn't available right now. Try again in a minute." });
+});

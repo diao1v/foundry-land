@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { HttpError } from "@/lib/api";
-import { ChatPanel } from "./ChatPanel";
 
 type Crumb = { label: string; to?: string };
 
@@ -27,7 +26,6 @@ export function Shell({ crumbs, error, children }: { crumbs: Crumb[]; error?: Er
         <div className="bg-warn-soft px-8 py-1.5 text-center text-[12.5px] text-navy">Can't reach the server — retrying…</div>
       )}
       <main className="mx-auto max-w-[1360px] px-8 py-6">{children}</main>
-      <ChatPanel />
     </div>
   );
 }
