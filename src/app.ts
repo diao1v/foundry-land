@@ -10,6 +10,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { batchDetail, documentView, listBatches } from "./api";
 import { audit, IllegalTransition } from "./audit";
+import { answerChat, ChatRequest, GUIDE_DOWN, type ChatGuide } from "./chat";
 import { batches, documents } from "./db/schema";
 import { batchNameFromEvent, type EGEvent } from "./events";
 import { approve, processBatch, reject, ReviewError, startBatch, type Deps } from "./orchestrator";
@@ -22,6 +23,7 @@ export type AppOptions = {
   webDir?: string;
   foundryAgentUrls?: Partial<AgentUrls>; // Foundry portal page of each agent (pasted into .env)
   demoPassword?: string; // when set: HTTP Basic Auth (user "demo") on everything except the Event Grid webhook
+  chat?: ChatGuide; // "Ask about this project"; no route when not set
 };
 
 const Approve = z.object({ reviewer: z.string().trim().min(1).max(40) });
@@ -136,6 +138,20 @@ export function makeApp(deps: Deps, opts: AppOptions) {
     if (!doc) return c.json({ error: "Invoice not found" }, 404);
     return c.body(new Uint8Array(await opts.pdf(doc.blobPath)), 200, { "Content-Type": "application/pdf" });
   });
+
+  if (opts.chat) {
+    const guide = opts.chat;
+    app.post("/api/chat", async (c) => {
+      const body = ChatRequest.safeParse(await c.req.json().catch(() => null));
+      if (!body.success) return c.json({ error: "Send 1–6 messages of up to 500 characters, ending with a question." }, 400);
+      try {
+        return c.json(await answerChat(body.data, guide));
+      } catch (e) {
+        console.error("chat:", e);
+        return c.json({ error: GUIDE_DOWN }, 503);
+      }
+    });
+  }
 
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 

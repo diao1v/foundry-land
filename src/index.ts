@@ -14,12 +14,16 @@ const cfg = loadConfig();
 await migrateDb(cfg.DATABASE_URL);
 const blob = makeBlob(cfg);
 const search = makeSearch(cfg);
+const projectSearch = makeSearch(cfg, "project-docs");
+const agents = makeAgents(cfg);
 
 const deps: Deps = {
   db: makeDb(cfg.DATABASE_URL),
   listPdfs: async (name) => (await blob.list("invoices", `${name}/`)).filter((p) => p.endsWith(".pdf")),
   extract: async (path) => toExtractedDoc(await analyzeLayout(cfg, await blob.download("invoices", path))),
-  ...makeAgents(cfg),
+  drift: agents.drift,
+  investigate: agents.investigate,
+  proposeFix: agents.proposeFix,
   notices: () => search.all(),
   notifyReview: async (batchId) => {
     if (!cfg.REVIEW_WEBHOOK_URL) return;
@@ -38,6 +42,7 @@ const app = makeApp(deps, {
   pdf: (path) => blob.download("invoices", path),
   upload: (path, data, contentType) => blob.upload("invoices", path, data, contentType),
   demoPassword: cfg.DEMO_PASSWORD,
+  chat: { ask: agents.guide, docs: () => projectSearch.all() },
   foundryAgentUrls: {
     analyst: cfg.FOUNDRY_DRIFT_ANALYST_AGENTS_URL,
     investigator: cfg.FOUNDRY_INVESTIGATOR_AGENTS_URL,
