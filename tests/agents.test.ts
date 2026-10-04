@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { verifyCitations, verifyPriceChanges } from "../src/agents/citations";
 import { AgentOutputError, parseJsonText, runAgent } from "../src/agents/run";
-import { FixProposal } from "../src/agents/schemas";
+import { agentDefinitions } from "../src/agents/prompts";
+import { FixProposal, ProjectAnswer } from "../src/agents/schemas";
 
 const proposal = { operations: [{ op: "addLabelAlias", field: "provider_no", label: "Provider ID" }], reasoning: "rename" };
 
@@ -77,4 +78,19 @@ it("verifies a price change only when the quote is in the notice and names the p
   );
   expect(verified).toEqual([{ procedure: "Extraction", newFee: 276, docId: "price-update", quote }]);
   expect(rejected).toHaveLength(3);
+});
+
+it("defines the project guide with search on the project-docs index", () => {
+  const def = agentDefinitions("m", "conn-1")["project-guide"];
+  expect(def.tools).toEqual([
+    { type: "azure_ai_search", azure_ai_search: { indexes: [{ project_connection_id: "conn-1", index_name: "project-docs", query_type: "simple", top_k: 5 }] } },
+  ]);
+  expect(def.instructions).toContain("I don't know from the project docs");
+});
+
+it("accepts a short answer with up to 5 sources", () => {
+  const src = { docId: "Architecture", quote: "The app runs on Azure Container Apps." };
+  expect(ProjectAnswer.safeParse({ answer: "It runs on Container Apps.", sources: [src] }).success).toBe(true);
+  expect(ProjectAnswer.safeParse({ answer: "x", sources: Array(6).fill(src) }).success).toBe(false);
+  expect(ProjectAnswer.safeParse({ answer: "", sources: [] }).success).toBe(false);
 });

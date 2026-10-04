@@ -46,3 +46,9 @@ export const FixProposal = z.object({
   reasoning: z.string(),
 });
 export type FixProposal = z.infer<typeof FixProposal>;
+
+export const ProjectAnswer = z.object({
+  answer: z.string().min(1).max(2000),
+  sources: z.array(CitationSchema).max(5),
+});
+export type ProjectAnswer = z.infer<typeof ProjectAnswer>;
