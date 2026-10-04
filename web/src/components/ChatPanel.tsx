@@ -15,7 +15,10 @@ export function ChatPanel() {
   const [busy, setBusy] = useState(false);
   const [quote, setQuote] = useState<string>();
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+  // braces: newer browsers return a Promise from scrollIntoView, which React would treat as a cleanup function
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, busy]);
 
   const send = async (text: string) => {
     const q = text.trim();
@@ -30,7 +33,9 @@ export function ChatPanel() {
       const r = await postJsonFor<ChatReply>("/api/chat", { messages: history });
       setMsgs([...next, { role: "assistant", content: r.answer, sources: r.sources }]);
     } catch (e) {
-      setMsgs([...next, { role: "assistant", content: (e as Error).message, error: true }]);
+      // fetch throws a TypeError when the server can't be reached at all
+      const text = e instanceof TypeError ? "Can't reach the server. Check your connection and try again." : (e as Error).message;
+      setMsgs([...next, { role: "assistant", content: text, error: true }]);
     } finally {
       setBusy(false);
     }
